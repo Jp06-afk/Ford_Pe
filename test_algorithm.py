@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 from ford_fulkerson import (
-    agregar_arista, cargar_ejemplo, crear_nodos, ford_fulkerson,
+    agregar_arista, cargar_ejemplo, crear_nodos, detectar_ciclo, ford_fulkerson,
     generar_grafo, preparar_red, validar_grafo,
 )
 
@@ -97,6 +97,11 @@ def ejecutar_pruebas():
         debe_fallar(preparar_red, nodos, cadena, fuentes, sumideros)
     debe_fallar(preparar_red, nodos, {}, ["A"], ["G"])
     debe_fallar(generar_grafo, 7, 0.5, 10, 2)
+    parcial = agregar_arista(["A", "B"], {}, "A", "B", 4, en_construccion=True)
+    parcial = agregar_arista(["A", "B"], parcial, "B", "A", 2, en_construccion=True)
+    assert set(detectar_ciclo(["A", "B"], parcial)) == {("A", "B"), ("B", "A")}
+    debe_fallar(ford_fulkerson, nodos, parcial, ["A"], ["B"])
+    assert not detectar_ciclo(nodos, cadena)
     print("OK: ciclos, duplicados, autoaristas, capacidades y selecciones inválidas.")
 
     for semilla in range(30):
@@ -163,7 +168,14 @@ def probar_interfaz():
     app.selectbox(key="destino_arista").select("A").run()
     next(b for b in app.button if b.label == "Agregar arista").click().run()
     sin_errores()
-    assert app.error and ("G", "A") not in app.session_state["aristas"]
+    assert app.error and ("G", "A") in app.session_state["aristas"]
+    assert app.button(key="iniciar").disabled
+    app.selectbox(key="arista_editar").set_value(("G", "A")).run()
+    app.button(key="eliminar").click().run()
+    sin_errores()
+    assert not detectar_ciclo(app.session_state["nodos"], app.session_state["aristas"])
+    assert not app.button(key="iniciar").disabled
+    app.selectbox(key="arista_editar").set_value(("A", "B")).run()
     app.button(key="eliminar").click().run()
     sin_errores()
     assert ("A", "B") not in app.session_state["aristas"]
@@ -188,7 +200,53 @@ def probar_interfaz():
     app.button(key="vaciar").click().run()
     sin_errores()
     assert not app.session_state["aristas"]
-    print("OK: interfaz, tres ejemplos, navegación, reinicio, invalidación, edición, ciclos y generación con 16 nodos.")
+
+    # Una red manual nueva debe olvidar incluso posiciones y widgets del ejemplo.
+    app.selectbox(key="ejemplo").select(2).run()
+    app.button(key="cargar_ejemplo").click().run()
+    app.button(key="iniciar").click().run()
+    app.button(key="final").click().run()
+    app.radio(key="modo").set_value("Crear grafo manual").run()
+    sin_errores()
+    for clave in ["nodos", "aristas", "fuentes", "sumideros", "iteraciones", "posiciones"]:
+        assert not app.session_state[clave], clave
+    assert app.session_state["fuente"] is None and app.session_state["sumidero"] is None
+    assert app.session_state["resultado"] is None and app.session_state["paso"] == 0
+    assert app.session_state["vista_canvas"] is None
+    assert app.button(key="iniciar").disabled
+    for _ in range(2):
+        app.button(key="agregar_nodo").click().run()
+    app.selectbox(key="origen_arista").select("A")
+    app.selectbox(key="destino_arista").select("B")
+    app.number_input(key="capacidad_arista").set_value(8)
+    next(b for b in app.button if b.label == "Agregar arista").click().run()
+    sin_errores()
+    assert app.session_state["aristas"]["A", "B"] == 8
+    assert app.button(key="iniciar").disabled  # Todavía hay menos de siete nodos.
+    for _ in range(5):
+        app.button(key="agregar_nodo").click().run()
+    app.selectbox(key="fuente_ui").select("A")
+    app.selectbox(key="sumidero_ui").select("B").run()
+    assert not app.button(key="iniciar").disabled
+    app.button(key="iniciar").click().run()
+    app.button(key="final").click().run()
+    sin_errores()
+    assert app.session_state["resultado"]["maximo"] == 8
+    final = next(df.value for df in app.dataframe if "Capacidad/Flujo" in df.value.columns)
+    assert final.iloc[0]["Capacidad/Flujo"] == "8/8"
+    for _ in range(9):
+        app.button(key="agregar_nodo").click().run()
+    assert app.button(key="agregar_nodo").disabled and len(app.session_state["nodos"]) == 16
+    app.number_input(key="n").set_value(17).run()
+    sin_errores()
+    assert app.error
+    app.number_input(key="n").set_value(7).run()
+    app.button(key="nueva_manual").click().run()
+    assert not app.session_state["nodos"]
+    app.button(key="crear_nodos").click().run()
+    sin_errores()
+    assert app.session_state["nodos"] == crear_nodos(7) and not app.session_state["aristas"]
+    print("OK: interfaz, ejemplos, reinicio manual completo, creación incremental, límites 7/16, edición, bloqueo de ciclos y resultados.")
 
 
 if __name__ == "__main__":

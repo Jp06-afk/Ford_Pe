@@ -17,29 +17,42 @@ def validar_capacidad(capacidad):
         raise ValueError("La capacidad debe ser un número entero positivo.")
 
 
-def validar_grafo(nodos, capacidades):
-    if list(nodos) != crear_nodos(len(nodos)):
-        raise ValueError("Los nodos deben llamarse A, B, C, … en orden y sin repetir.")
+def detectar_ciclo(nodos, capacidades):
     grafo = nx.DiGraph()
     grafo.add_nodes_from(nodos)
+    grafo.add_edges_from(capacidades)
+    try:
+        return list(nx.find_cycle(grafo))
+    except nx.NetworkXNoCycle:
+        return []
+
+
+def validar_grafo(nodos, capacidades, en_construccion=False):
+    if en_construccion:
+        if len(nodos) > 16:
+            raise ValueError("La red admite como máximo 16 nodos.")
+        esperados = list(string.ascii_uppercase[:len(nodos)])
+    else:
+        esperados = crear_nodos(len(nodos))
+    if list(nodos) != esperados:
+        raise ValueError("Los nodos deben llamarse A, B, C, … en orden y sin repetir.")
     for (u, v), capacidad in capacidades.items():
         if u not in nodos or v not in nodos:
             raise ValueError("Los extremos de cada arista deben pertenecer a la red.")
         if u == v:
             raise ValueError("No se permiten autoaristas: origen y destino deben diferir.")
         validar_capacidad(capacidad)
-        grafo.add_edge(u, v)
-    if not nx.is_directed_acyclic_graph(grafo):
-        ciclo = nx.find_cycle(grafo)
+    ciclo = detectar_ciclo(nodos, capacidades)
+    if ciclo and not en_construccion:
         recorrido = [u for u, _ in ciclo] + [ciclo[0][0]]
         raise ValueError("La arista generaría un ciclo: " + " → ".join(recorrido))
 
 
-def agregar_arista(nodos, capacidades, origen, destino, capacidad):
+def agregar_arista(nodos, capacidades, origen, destino, capacidad, en_construccion=False):
     if (origen, destino) in capacidades:
         raise ValueError("La arista ya existe. Usa Modificar capacidad.")
     nuevas = {**capacidades, (origen, destino): capacidad}
-    validar_grafo(nodos, nuevas)
+    validar_grafo(nodos, nuevas, en_construccion=en_construccion)
     return nuevas
 
 

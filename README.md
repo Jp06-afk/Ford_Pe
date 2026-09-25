@@ -32,6 +32,7 @@ con Ctrl+C. Ejecuta desde esta carpeta para que se cargue el tema visual.
 | --- | --- |
 | `ford_fulkerson.py` | Validación, ejemplos, generación, residual, etiquetas, actualización y corte manual. |
 | `app.py` | Interfaz Streamlit, estado de la sesión y gráficos Plotly. |
+| `canvas_grafo.py` | Adaptador de gestos sobre las mismas figuras Plotly: desplazar, mover nodos y zoom. |
 | `test_algorithm.py` | Pruebas con asserts y comprobación opcional de la interfaz. |
 | `requirements.txt` | Solo Streamlit, NetworkX y Plotly, en las versiones utilizadas. |
 | `.streamlit/config.toml` | Tema nativo rojo/blanco y sidebar oscuro, sin CSS ni imágenes externas. |
@@ -39,26 +40,44 @@ con Ctrl+C. Ejecuta desde esta carpeta para que se cargue el tema visual.
 | `README.md` | Ejecución, fundamentos para sustentar y diagrama. |
 
 El pequeño directorio `.streamlit` es necesario para configurar el tema con
-las opciones nativas. No se usan bases de datos, servicios ni JavaScript propio.
+las opciones nativas. El adaptador del canvas usa JavaScript mediante los
+componentes v2 de Streamlit para los gestos que `st.plotly_chart` no ofrece.
+Reutiliza el Plotly instalado, sin CDN, dependencias adicionales ni compilación frontend.
 
 ## Recorrido de la aplicación
 
-1. Carga un ejemplo desde el sidebar o configura de 7 a 16 nodos.
-2. Agrega aristas manualmente o genera un DAG. Puedes editar capacidades,
-   eliminar conexiones o vaciar la red. Una nueva arista que cierre un ciclo se rechaza.
+1. Carga un ejemplo desde el sidebar o selecciona **Crear grafo manual**.
+   Esta selección borra por completo la red anterior, terminales, posiciones,
+   flujos, historial y resultados. **Nueva red manual** permite repetir ese reinicio.
+2. En manual, usa **Crear los n nodos** (n entre 7 y 16) o **Agregar nodo**
+   para añadir A, B, C… individualmente. Puedes agregar aristas mientras construyes;
+   ejecutar requiere obligatoriamente entre 7 y 16 nodos. Cambiar n ajusta una red
+   ya creada y conserva solo las aristas cuyos extremos siguen existiendo.
+   Edita las capacidades o elimina conexiones con los controles existentes.
+   Los ciclos se resaltan en rojo y bloquean el algoritmo hasta eliminar
+   una de sus aristas. También puedes generar un DAG aleatorio.
 3. Selecciona fuente/sumidero únicos o varios terminales. Debe existir al menos
    una ruta entre los conjuntos. Las selecciones deben ser disjuntas.
 4. Pulsa **Iniciar Ford-Fulkerson**. La vista inicial tiene flujo cero.
    Usa **Siguiente**, **Anterior**, **Ver resultado final** y **Reiniciar algoritmo**.
 5. En cada iteración consulta las etiquetas, Delta, el camino y las pestañas de
-   flujo y residual. Puedes comparar antes y después de aplicar el incremento.
+   flujo y residual. Puedes comparar antes y después de aplicar el incremento
+   y consultar el residual de cada paso del camino. Todas las etiquetas muestran
+   **capacidad/flujo**: por ejemplo, `8/0` antes de enviar flujo y `8/5` después.
+   La residual sigue mostrando únicamente la capacidad residual disponible.
 6. En el estado final revisa el corte y descarga el informe TXT.
 
 Editar el grafo, cambiar n o cambiar los terminales descarta los resultados
 anteriores. Los estados son propios de cada sesión y se pierden al cerrarla.
 El historial solo muestra incrementos ya aplicados en la vista elegida.
 
-Los gráficos mantienen las posiciones entre iteraciones. En redes densas
+Los gráficos mantienen las posiciones y la vista entre iteraciones y entre
+las pestañas de flujo/residual. Arrastrar el fondo con clic izquierdo o derecho
+desplaza el canvas; arrastrar un nodo mueve únicamente ese nodo y sus aristas.
+La rueda o el gesto de dos dedos hacen zoom; arrastrar con un solo puntero nunca
+hace zoom. En móvil, un dedo sobre el fondo desplaza la vista y dos dedos amplían
+o reducen. **Centrar vista** permite recuperar todos los nodos después de desplazarlos.
+En redes densas
 puedes ocultar los valores y consultar las aristas con el cursor o las tablas.
 Las flechas residuales opuestas se dibujan separadas. El ámbar resalta el
 camino; el trazo discontinuo permite reconocer un paso inverso incluso resaltado.
@@ -151,8 +170,12 @@ inversas, terminales ficticios, validaciones y la igualdad flujo/corte.
 También comparan 120 casos con un oráculo independiente que enumera todos los
 cortes pequeños, sin utilizar ningún solucionador externo de flujo máximo.
 La opción `--interfaz` usa AppTest, incluido en Streamlit, y recorre los ejemplos,
-la navegación, la edición, la invalidación y la generación de 16 nodos.
-AppTest comprueba comportamiento, pero no sustituye una revisión visual en móvil.
+la navegación, la edición, la invalidación, la generación de 16 nodos y el
+reinicio manual desde un resultado con múltiples terminales. Comprueba también
+la creación incremental, los ciclos durante la edición y el formato capacidad/flujo.
+Los gestos se verifican en navegador: clic izquierdo/derecho, arrastre de un nodo,
+rueda, persistencia entre pasos y emulación de un dedo/dos dedos en móvil.
+AppTest por sí solo no simula los eventos del canvas ni sustituye un dispositivo físico.
 
 ## Subir a GitHub y desplegar después
 
