@@ -1,198 +1,18 @@
-"""Adaptador de gestos para las figuras Plotly existentes, sin dependencias nuevas."""
+"""Figuras Plotly, posiciones persistentes y enlace con los gestos del canvas."""
 
 import json
 import math
+from pathlib import Path
 
+import networkx as nx
+import plotly.graph_objects as go
 from plotly.offline import get_plotlyjs
 import streamlit as st
 import streamlit.components.v2 as components
 
 
 # Plotly se sirve desde el paquete instalado; el canvas funciona sin CDN.
-GESTOS = r"""
-const recursosCanvas = new WeakMap();
-export default function ({data, parentElement, setTriggerValue}) {
-    // Streamlit puede volver a ejecutar el renderer sin desmontar su contenedor.
-    recursosCanvas.get(parentElement)?.();
-    const plot = parentElement.querySelector('.ff-plot');
-    const Plotly = window.Plotly;
-    const fig = data.figura;
-    const meta = fig.layout.meta;
-    const posiciones = structuredClone(meta.posiciones);
-    const vista = structuredClone(data.vista);
-    const pointers = new Map();
-    let nodo = null, cambiado = false, cerrado = false, frame = 0, timer = 0;
-    let renderizando = false, pendiente = false, listo = false;
-    const config = {responsive: true, displayModeBar: false, scrollZoom: false,
-                    doubleClick: false, editable: false};
-
-    function punto(u, v, curva, t) {
-        const [x0, y0] = posiciones[u], [x1, y1] = posiciones[v];
-        const dx = x1 - x0, dy = y1 - y0, largo = Math.hypot(dx, dy) || .001;
-        const cx = (x0 + x1) / 2 - dy / largo * curva;
-        const cy = (y0 + y1) / 2 + dx / largo * curva;
-        return [(1-t)**2*x0 + 2*(1-t)*t*cx + t*t*x1,
-                (1-t)**2*y0 + 2*(1-t)*t*cy + t*t*y1];
-    }
-
-    function geometria() {
-        for (const e of meta.aristas) {
-            const puntos = Array.from({length: 27}, (_, i) => punto(e.u, e.v, e.curva, (i+2)/30));
-            fig.data[e.traza].x = puntos.map(p => p[0]);
-            fig.data[e.traza].y = puntos.map(p => p[1]);
-            const punta = punto(e.u, e.v, e.curva, .90), cola = punto(e.u, e.v, e.curva, .80);
-            Object.assign(fig.layout.annotations[e.flecha], {x: punta[0], y: punta[1], ax: cola[0], ay: cola[1]});
-            if (e.texto !== null) {
-                const centro = punto(e.u, e.v, e.curva, .5);
-                Object.assign(fig.layout.annotations[e.texto], {x: centro[0], y: centro[1]});
-            }
-        }
-        const nodos = fig.data[fig.data.length - 1];
-        nodos.x = meta.nodos.map(n => posiciones[n][0]);
-        nodos.y = meta.nodos.map(n => posiciones[n][1]);
-        fig.layout.xaxis.range = [...vista.x];
-        fig.layout.yaxis.range = [...vista.y];
-        fig.layout.datarevision = (fig.layout.datarevision || 0) + 1;
-        fig.layout.uirevision = fig.layout.datarevision;
-    }
-
-    // Como máximo un render en curso: los eventos rápidos se agrupan por frame.
-    function dibujar() {
-        pendiente = true;
-        if (frame || renderizando || cerrado) return;
-        frame = requestAnimationFrame(() => {
-            frame = 0;
-            if (cerrado) return;
-            pendiente = false;
-            renderizando = true;
-            geometria();
-            Plotly.react(plot, fig.data, fig.layout, config).then(() => {
-                renderizando = false;
-                if (pendiente) dibujar();
-            });
-        });
-    }
-
-    function caja() {
-        const r = plot.getBoundingClientRect();
-        const m = fig.layout.margin;
-        return {x: r.left + m.l, y: r.top + m.t,
-                w: Math.max(1, r.width - m.l - m.r), h: Math.max(1, r.height - m.t - m.b)};
-    }
-    function coordenadas(p) {
-        const b = caja();
-        return [vista.x[0] + (p.x - b.x) / b.w * (vista.x[1] - vista.x[0]),
-                vista.y[1] - (p.y - b.y) / b.h * (vista.y[1] - vista.y[0])];
-    }
-    function nodoCercano(p) {
-        const b = caja();
-        return meta.nodos.find(n => {
-            const [x,y] = posiciones[n];
-            const px = b.x + (x - vista.x[0]) / (vista.x[1] - vista.x[0]) * b.w;
-            const py = b.y + (vista.y[1] - y) / (vista.y[1] - vista.y[0]) * b.h;
-            return Math.hypot(px-p.x, py-p.y) <= 22;
-        }) || null;
-    }
-    function mover(dx, dy) {
-        const b = caja();
-        const sx = dx / b.w * (vista.x[1] - vista.x[0]);
-        const sy = dy / b.h * (vista.y[1] - vista.y[0]);
-        vista.x = vista.x.map(v => v - sx);
-        vista.y = vista.y.map(v => v + sy);
-    }
-    function zoom(factor, p) {
-        // Límites numéricos para poder volver siempre a una vista útil.
-        const ancho = vista.x[1] - vista.x[0];
-        factor = Math.max(.08/ancho, Math.min(100/ancho, factor));
-        const centro = coordenadas(p);
-        vista.x = vista.x.map(v => centro[0] + (v - centro[0]) * factor);
-        vista.y = vista.y.map(v => centro[1] + (v - centro[1]) * factor);
-    }
-    function guardar() {
-        clearTimeout(timer);
-        if (!cambiado || cerrado || pointers.size) return;
-        cambiado = false;
-        setTriggerValue('cambio', {revision: data.revision, posiciones, vista});
-    }
-    function down(e) {
-        if (!listo || (e.pointerType === 'mouse' && ![0,2].includes(e.button))) return;
-        e.preventDefault();
-        clearTimeout(timer);
-        const p = {x:e.clientX, y:e.clientY};
-        pointers.set(e.pointerId, p);
-        plot.setPointerCapture(e.pointerId);
-        nodo = pointers.size === 1 && e.button !== 2 ? nodoCercano(p) : null;
-        plot.style.cursor = 'grabbing';
-    }
-    function move(e) {
-        if (!pointers.has(e.pointerId)) return;
-        e.preventDefault();
-        const anteriores = [...pointers.values()];
-        const previo = pointers.get(e.pointerId), p = {x:e.clientX, y:e.clientY};
-        pointers.set(e.pointerId, p);
-        if (p.x === previo.x && p.y === previo.y) return;
-        if (pointers.size === 2) {
-            nodo = null;
-            const actuales = [...pointers.values()];
-            const centro = a => ({x:(a[0].x+a[1].x)/2, y:(a[0].y+a[1].y)/2});
-            const distancia = a => Math.hypot(a[1].x-a[0].x, a[1].y-a[0].y);
-            const ca = centro(anteriores), cn = centro(actuales);
-            mover(cn.x-ca.x, cn.y-ca.y);
-            zoom(Math.max(1,distancia(anteriores))/Math.max(1,distancia(actuales)), cn);
-        } else if (pointers.size === 1 && nodo) {
-            const a = coordenadas(previo), b = coordenadas(p);
-            posiciones[nodo] = [posiciones[nodo][0]+b[0]-a[0], posiciones[nodo][1]+b[1]-a[1]];
-        } else if (pointers.size === 1) {
-            mover(p.x-previo.x, p.y-previo.y);
-        }
-        cambiado = true;
-        dibujar();
-    }
-    function up(e) {
-        if (!pointers.has(e.pointerId)) return;
-        pointers.delete(e.pointerId);
-        nodo = null;
-        if (!pointers.size) {
-            plot.style.cursor = 'grab';
-            guardar();
-        }
-    }
-    function wheel(e) {
-        if (!listo) return;
-        e.preventDefault();
-        const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 480 : 1);
-        zoom(Math.exp(Math.max(-1,Math.min(1,delta*.002))), {x:e.clientX,y:e.clientY});
-        cambiado = true;
-        dibujar();
-        clearTimeout(timer);
-        timer = setTimeout(guardar, 250);
-    }
-    // Plotly escucha también touchstart/mousedown y crea una capa dragcover.
-    // Interceptarlos evita que esa capa se lleve el segundo dedo del pinch.
-    const bloquear = e => {e.preventDefault(); e.stopPropagation();};
-    const handlers = {pointerdown:down, pointermove:move, pointerup:up,
-                      pointercancel:up, lostpointercapture:up, wheel,
-                      contextmenu:bloquear, dragstart:bloquear, mousedown:bloquear,
-                      touchstart:bloquear, touchmove:bloquear, touchend:bloquear,
-                      dblclick:bloquear};
-    for (const [evento, fn] of Object.entries(handlers)) plot.addEventListener(evento, fn, {passive:false,capture:true});
-    geometria();
-    Plotly.newPlot(plot, fig.data, fig.layout, config).then(() => {if (!cerrado) listo = true;});
-    const observer = new ResizeObserver(() => {if (listo && plot.clientWidth) Plotly.Plots.resize(plot);});
-    observer.observe(plot);
-    const limpiar = () => {
-        cerrado = true;
-        clearTimeout(timer);
-        cancelAnimationFrame(frame);
-        observer.disconnect();
-        for (const [evento, fn] of Object.entries(handlers)) plot.removeEventListener(evento, fn, true);
-        Plotly.purge(plot);
-        recursosCanvas.delete(parentElement);
-    };
-    recursosCanvas.set(parentElement, limpiar);
-    return () => {if (recursosCanvas.get(parentElement) === limpiar) limpiar();};
-}
-"""
+GESTOS = Path(__file__).with_name("canvas_gestos.js").read_text(encoding="utf-8")
 
 _CANVAS = components.component(
     "ford_fulkerson_canvas",
@@ -242,3 +62,102 @@ def mostrar_canvas(figura, key):
     st.button("Centrar vista", key=f"centrar_{key}", on_click=centrar_canvas)
     st.caption("Arrastra el fondo con clic izquierdo o derecho para mover la vista; arrastra un nodo para moverlo. "
                "Rueda: zoom. En móvil: un dedo desplaza y dos dedos amplían o reducen.")
+
+
+@st.cache_data(max_entries=24, show_spinner=False)
+def obtener_posiciones(nodos, aristas):
+    grafo = nx.DiGraph()
+    grafo.add_nodes_from(nodos)
+    grafo.add_edges_from(aristas)
+    posiciones = nx.spring_layout(grafo, seed=21, k=1.2, iterations=120)
+    return {nodo: (float(p[0]), float(p[1])) for nodo, p in posiciones.items()}
+
+
+def posiciones_actuales(nodos, aristas):
+    iniciales = obtener_posiciones(tuple(nodos), tuple(sorted(aristas)))
+    posiciones = st.session_state.posiciones
+    for nodo in nodos:
+        posiciones.setdefault(nodo, iniciales[nodo])
+    return {nodo: posiciones[nodo] for nodo in nodos}
+
+
+def dibujar_grafo(nodos, capacidades, posiciones, fuentes, sumideros,
+                  flujo=None, residual=None, camino=None, corte=None, etiquetas=None,
+                  mostrar_valores=True, ciclo=None):
+    figura = go.Figure()
+    pasos = camino or []
+    recorrido = {(p["origen"], p["destino"]) for p in pasos}
+    originales_camino = {p["arista"] for p in pasos}
+    aristas = residual if residual is not None else capacidades
+    geometria = []
+    for (u, v), dato in sorted(aristas.items()):
+        inversa = residual is not None and dato["signo"] == "-"
+        actual = (u, v) in (recorrido if residual is not None else originales_camino)
+        saturada = flujo is not None and residual is None and flujo[u, v] == capacidades[u, v]
+        en_corte = corte is not None and (u, v) in corte
+        en_ciclo = ciclo is not None and (u, v) in ciclo
+        color = "#DC2626" if en_ciclo else "#9F1239" if en_corte else "#B45309" if actual else "#7C3AED" if inversa else "#DC2626" if saturada else "#64748B"
+        ancho = 4 if actual or en_corte or en_ciclo else 2
+        estilo = "dash" if inversa or saturada else "solid"
+        # El renderer calcula la curva inicial y la actualiza al mover sus extremos.
+        curva = 0.12 if (v, u) in aristas else 0.035
+        if residual is not None:
+            valor = str(dato["capacidad"])
+            detalle = f"Residual {'inversa (−)' if inversa else 'directa (+)'}: {valor}"
+        else:
+            valor = f"{dato}/{0 if flujo is None else flujo[u, v]}"
+            detalle = f"Capacidad / flujo: {valor}"
+        geometria.append({"u": u, "v": v, "curva": curva, "traza": len(figura.data),
+                          "flecha": len(figura.layout.annotations),
+                          "texto": len(figura.layout.annotations) + 1 if mostrar_valores else None})
+        figura.add_trace(go.Scatter(
+            x=[], y=[], mode="lines",
+            line=dict(color=color, width=ancho, dash=estilo),
+            text=f"{u} → {v}<br>{detalle}", hovertemplate="%{text}<extra></extra>",
+            showlegend=False,
+        ))
+        figura.add_annotation(x=0, y=0, ax=0, ay=0,
+                              xref="x", yref="y", axref="x", ayref="y", text="",
+                              showarrow=True, arrowhead=2, arrowsize=1.2,
+                              arrowwidth=ancho, arrowcolor=color)
+        if mostrar_valores:
+            figura.add_annotation(x=0, y=0, text=valor, showarrow=False,
+                                  font=dict(size=12, color=color), bgcolor="rgba(255,255,255,0.94)",
+                                  borderpad=2, hovertext=f"{u} → {v}: {detalle}")
+    colores, formas, textos = [], [], []
+    for nodo in nodos:
+        en_ciclo = ciclo and any(nodo in arista for arista in ciclo)
+        colores.append("#DC2626" if en_ciclo else "#BE123C" if nodo in fuentes else "#18181B" if nodo in sumideros else "#475569")
+        formas.append("diamond" if "*" in nodo else "square" if nodo in sumideros else "circle")
+        rol = "Fuente" if nodo in fuentes else "Sumidero" if nodo in sumideros else "Nodo intermedio"
+        texto = f"{nodo} · {rol}" + (" ficticio" if "*" in nodo else "")
+        if etiquetas and nodo in etiquetas:
+            e = etiquetas[nodo]
+            valor = "(−, ∞)" if e["predecesor"] is None else f"({e['predecesor']}{e['signo']}, {e['delta']})"
+            texto += f"<br>Etiqueta: {valor}"
+        textos.append(texto)
+    figura.add_trace(go.Scatter(
+        x=[posiciones[n][0] for n in nodos], y=[posiciones[n][1] for n in nodos],
+        mode="markers+text", text=nodos, textposition="middle center",
+        textfont=dict(color="white", size=13),
+        marker=dict(size=34, color=colores, symbol=formas, line=dict(color="white", width=2)),
+        hovertext=textos, hovertemplate="%{hovertext}<extra></extra>", showlegend=False,
+    ))
+    figura.update_layout(
+        height=480, margin=dict(l=15, r=15, t=15, b=15),
+        paper_bgcolor="white", plot_bgcolor="white", font=dict(color="#18181B"),
+        xaxis=dict(visible=False, range=[-1.22, 1.22]),
+        yaxis=dict(visible=False, range=[-1.22, 1.22]),
+        hovermode="closest", uirevision=str(tuple(nodos)) + str(tuple(capacidades)),
+        dragmode=False, meta={"aristas": geometria, "nodos": list(nodos),
+                              "posiciones": posiciones},
+    )
+    return figura
+
+
+def mostrar_red(red, fuentes, sumideros, key, **opciones):
+    """Dibuja una red con posiciones persistentes y sus terminales ficticios."""
+    mostrar_canvas(dibujar_grafo(
+        red["nodos"], red["capacidades"], posiciones_actuales(red["nodos"], red["capacidades"]),
+        fuentes + (["S*"] if "S*" in red["nodos"] else []),
+        sumideros + (["T*"] if "T*" in red["nodos"] else []), **opciones), key=key)

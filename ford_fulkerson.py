@@ -2,6 +2,7 @@
 
 import random
 import string
+from itertools import combinations, pairwise
 
 import networkx as nx
 
@@ -66,11 +67,8 @@ def generar_grafo(n, densidad=0.3, minimo=1, maximo=20, semilla=None):
         raise ValueError("La densidad debe estar entre 0 y 1.")
     azar = random.Random(semilla)
     # Una cadena base hace que todos los nodos participen en una ruta A → último.
-    capacidades = {
-        (nodos[i], nodos[i + 1]): azar.randint(minimo, maximo)
-        for i in range(n - 1)
-    }
-    candidatas = [(nodos[i], nodos[j]) for i in range(n) for j in range(i + 2, n)]
+    capacidades = {arista: azar.randint(minimo, maximo) for arista in pairwise(nodos)}
+    candidatas = [arista for arista in combinations(nodos, 2) if arista not in capacidades]
     objetivo = max(n - 1, round(densidad * n * (n - 1) / 2))
     for arista in azar.sample(candidatas, objetivo - len(capacidades)):
         capacidades[arista] = azar.randint(minimo, maximo)
@@ -194,7 +192,7 @@ def ford_fulkerson(nodos, capacidades, fuentes, sumideros):
     red = preparar_red(nodos, capacidades, fuentes, sumideros)
     capacidades = red["capacidades"]
     fuente, sumidero = red["fuente"], red["sumidero"]
-    flujo = {arista: 0 for arista in capacidades}
+    flujo = dict.fromkeys(capacidades, 0)
     total, iteraciones = 0, []
     while True:
         residual = crear_red_residual(capacidades, flujo)

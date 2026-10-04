@@ -31,8 +31,10 @@ con Ctrl+C. Ejecuta desde esta carpeta para que se cargue el tema visual.
 | Archivo | Responsabilidad |
 | --- | --- |
 | `ford_fulkerson.py` | Validación, ejemplos, generación, residual, etiquetas, actualización y corte manual. |
-| `app.py` | Interfaz Streamlit, estado de la sesión y gráficos Plotly. |
-| `canvas_grafo.py` | Adaptador de gestos sobre las mismas figuras Plotly: desplazar, mover nodos y zoom. |
+| `app.py` | Recorrido de la interfaz Streamlit: formularios, navegación y resultados. |
+| `interfaz.py` | Callbacks de sesión, presentación de validaciones, tablas e informe TXT. |
+| `canvas_grafo.py` | Figuras Plotly, distribución y persistencia de posiciones, conexión con el canvas. |
+| `canvas_gestos.js` | Gestos y geometría de aristas: desplazar, mover nodos y zoom. |
 | `test_algorithm.py` | Pruebas con asserts y comprobación opcional de la interfaz. |
 | `requirements.txt` | Solo Streamlit, NetworkX y Plotly, en las versiones utilizadas. |
 | `.streamlit/config.toml` | Tema nativo rojo/blanco y sidebar oscuro, sin CSS ni imágenes externas. |
@@ -43,6 +45,12 @@ El pequeño directorio `.streamlit` es necesario para configurar el tema con
 las opciones nativas. El adaptador del canvas usa JavaScript mediante los
 componentes v2 de Streamlit para los gestos que `st.plotly_chart` no ofrece.
 Reutiliza el Plotly instalado, sin CDN, dependencias adicionales ni compilación frontend.
+`canvas_grafo.py` lee `canvas_gestos.js` junto a su propio archivo mediante
+`pathlib.Path(__file__)`; no depende del directorio desde el que se importa.
+
+`app.py` usa los auxiliares de `interfaz.py`, consulta el algoritmo en
+`ford_fulkerson.py` y entrega sus estados a `canvas_grafo.py`. El algoritmo
+permanece independiente de Streamlit y de la representación visual.
 
 ## Recorrido de la aplicación
 
@@ -157,11 +165,61 @@ los estados usan O(k·(V+E)) memoria. Como todo Ford-Fulkerson con elección
 arbitraria de caminos, capacidades grandes pueden exigir muchos aumentos.
 Para la práctica se recomiendan capacidades entre 1 y 20.
 
+## Refactorización y equivalencia
+
+Referencia: versión `454d4f9`, antes de esta refactorización. El conteo incluye
+líneas vacías, comentarios y docstrings; no se eliminó formato para reducirlo.
+
+| Archivo | Antes | Después | Reducción | Cambio principal |
+| --- | ---: | ---: | ---: | --- |
+| `app.py` | 544 | 311 | 42,8 % | Reutiliza auxiliares de estado, tablas, validaciones y gráficos. |
+| `canvas_grafo.py` | 244 | 163 | 33,2 % | Agrupa los gráficos y carga el JavaScript separado. |
+| `ford_fulkerson.py` | 239 | 237 | 0,8 % | Generación con `itertools`; flujo cero con `dict.fromkeys`. |
+| `test_algorithm.py` | 255 | 232 | 9,0 % | Una interacción común de AppTest y excepciones con `unittest`. |
+| `interfaz.py` | 0 | 129 | Nuevo | Auxiliares extraídos de la interfaz y reutilizados. |
+| **Total Python** | **1.282** | **1.072** | **16,4 %** | Incluye el módulo nuevo. |
+| `canvas_gestos.js` | Dentro del Python | 183 | Extraído | El JavaScript conserva exactamente su contenido original. |
+| **Total Python + JavaScript** | **1.282** | **1.255** | **2,1 %** | Reducción neta, sin contar los traslados como eliminación. |
+
+La reducción de los archivos Python combina organización y eliminación de
+duplicación. La reducción neta del código es más moderada porque se mantiene
+explícito el algoritmo académico y no se eliminan funcionalidades ni pruebas.
+
+Se eliminó el cálculo de curvas, flechas y centros de etiquetas en Python:
+el renderer JavaScript ya recalculaba esa geometría antes del primer dibujo
+y al mover los nodos. `mostrar_red` reúne posiciones, terminales ficticios y
+canvas para las vistas de flujo, residual y previa. `mostrar_validacion` reúne
+el manejo común de `ValueError`, y `mostrar_tabla` usa `functools.partial` para
+compartir las mismas opciones de Streamlit. La interacción de las pruebas
+comprueba excepciones después de cada cambio sin repetir esa comprobación.
+
+Se usa la biblioteca estándar (`pathlib`, `contextlib`, `functools`, `itertools`
+y `unittest`) y las mismas dependencias de `requirements.txt`: Streamlit,
+NetworkX y Plotly. **No se agregó ninguna dependencia.** `pairwise` construye
+la cadena inicial y `combinations` enumera aristas en el mismo orden que antes;
+se conserva la secuencia del generador aleatorio. El etiquetado, los caminos,
+la actualización de flujo y el corte mínimo siguen implementados manualmente.
+
+Verificación realizada:
+
+- Compilación de los cinco módulos Python y ejecución de la aplicación.
+- Suite matemática y suite de interacción de Streamlit completas.
+- Comparación con la versión anterior: 45 estados de interfaz y 123 resultados
+  completos, incluidas etiquetas, caminos, flujos, residuales y cortes idénticos.
+  Para las figuras se compararon estilos y metadatos; la geometría inicial que
+  ahora calcula el renderer se verificó en navegador.
+- Informes TXT idénticos byte por byte y tablas equivalentes en los 123 casos.
+- 120 grafos aleatorios idénticos, abarcando todos los tamaños de 7 a 16 nodos.
+- JavaScript extraído idéntico al original; gestos comprobados en Chrome:
+  arrastre izquierdo/derecho, movimiento de un nodo, rueda, persistencia entre
+  pasos y emulación móvil con uno y dos dedos. La emulación no sustituye una
+  prueba en un teléfono físico.
+
 ## Pruebas
 
 ```powershell
 python test_algorithm.py
-python -m py_compile app.py ford_fulkerson.py
+python -m py_compile app.py interfaz.py canvas_grafo.py ford_fulkerson.py test_algorithm.py
 python test_algorithm.py --interfaz
 ```
 

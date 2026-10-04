@@ -3,6 +3,7 @@
 from itertools import combinations
 from pathlib import Path
 import sys
+from unittest import TestCase
 
 from ford_fulkerson import (
     agregar_arista, cargar_ejemplo, crear_nodos, detectar_ciclo, ford_fulkerson,
@@ -11,11 +12,8 @@ from ford_fulkerson import (
 
 
 def debe_fallar(funcion, *args):
-    try:
+    with TestCase().assertRaises(ValueError):
         funcion(*args)
-    except ValueError:
-        return
-    raise AssertionError("Se esperaba rechazar una entrada inválida.")
 
 
 def comprobar_factibilidad(resultado, flujo, valor):
@@ -125,89 +123,72 @@ def probar_interfaz():
 
     app = AppTest.from_file(str(Path(__file__).with_name("app.py")), default_timeout=20).run()
 
-    def sin_errores():
+    def interactuar(clave, valor=True):
+        """Aplica un cambio, ejecuta la interfaz y comprueba las excepciones."""
+        app.get_by_key(clave).set_value(valor).run()
         assert not app.exception, [e.message for e in app.exception]
 
-    sin_errores()
+    assert not app.exception, [e.message for e in app.exception]
     for ejemplo, esperado in [(1, 14), (2, 18), (3, 2)]:
-        app.selectbox(key="ejemplo").select(ejemplo).run()
-        app.button(key="cargar_ejemplo").click().run()
-        sin_errores()
-        app.button(key="iniciar").click().run()
-        sin_errores()
+        interactuar("ejemplo", ejemplo)
+        interactuar("cargar_ejemplo")
+        interactuar("iniciar")
         assert app.session_state["resultado"]["maximo"] == esperado
         assert app.session_state["paso"] == 0
         for _ in app.session_state["iteraciones"]:
-            app.button(key="siguiente").click().run()
-            sin_errores()
-        app.radio(key="momento").set_value("Antes de actualizar").run()
-        sin_errores()
-        app.radio(key="momento").set_value("Después de actualizar").run()
-        app.button(key="final").click().run()
-        sin_errores()
+            interactuar("siguiente")
+        interactuar("momento", "Antes de actualizar")
+        interactuar("momento", "Después de actualizar")
+        interactuar("final")
         assert any(f"FLUJO MÁXIMO = {esperado}" in e.value for e in app.success)
-        app.button(key="anterior").click().run()
-        sin_errores()
-    app.button(key="reiniciar").click().run()
+        interactuar("anterior")
+    interactuar("reiniciar")
     assert app.session_state["resultado"] is None
-    app.button(key="iniciar").click().run()
-    app.selectbox(key="sumidero_ui").select("A").run()
-    sin_errores()
+    interactuar("iniciar")
+    interactuar("sumidero_ui", "A")
     assert app.session_state["resultado"] is None and app.error
     assert app.button(key="iniciar").disabled
-    app.selectbox(key="sumidero_ui").select("G").run()
-    app.button(key="iniciar").click().run()
-    app.selectbox(key="arista_editar").set_value(("A", "B")).run()
+    interactuar("sumidero_ui", "G")
+    interactuar("iniciar")
+    interactuar("arista_editar", ("A", "B"))
     capacidad = next(w for w in app.number_input if w.label == "Nueva capacidad")
-    capacidad.set_value(9).run()
-    app.button(key="modificar").click().run()
-    sin_errores()
+    interactuar(capacidad.key, 9)
+    interactuar("modificar")
     assert app.session_state["aristas"]["A", "B"] == 9
     assert app.session_state["resultado"] is None
-    app.selectbox(key="origen_arista").select("G").run()
-    app.selectbox(key="destino_arista").select("A").run()
-    next(b for b in app.button if b.label == "Agregar arista").click().run()
-    sin_errores()
+    interactuar("origen_arista", "G")
+    interactuar("destino_arista", "A")
+    interactuar("FormSubmitter:nueva_arista-Agregar arista")
     assert app.error and ("G", "A") in app.session_state["aristas"]
     assert app.button(key="iniciar").disabled
-    app.selectbox(key="arista_editar").set_value(("G", "A")).run()
-    app.button(key="eliminar").click().run()
-    sin_errores()
+    interactuar("arista_editar", ("G", "A"))
+    interactuar("eliminar")
     assert not detectar_ciclo(app.session_state["nodos"], app.session_state["aristas"])
     assert not app.button(key="iniciar").disabled
-    app.selectbox(key="arista_editar").set_value(("A", "B")).run()
-    app.button(key="eliminar").click().run()
-    sin_errores()
+    interactuar("arista_editar", ("A", "B"))
+    interactuar("eliminar")
     assert ("A", "B") not in app.session_state["aristas"]
-    app.number_input(key="n").set_value(6).run()
-    sin_errores()
+    interactuar("n", 6)
     assert app.error
-    app.number_input(key="n").set_value(16).run()
-    sin_errores()
+    interactuar("n", 16)
     assert len(app.session_state["nodos"]) == 16
-    app.radio(key="modo").set_value("Aleatorio").run()
-    next(b for b in app.button if b.label == "Generar otro grafo").click().run()
-    sin_errores()
-    app.button(key="iniciar").click().run()
-    sin_errores()
-    app.button(key="final").click().run()
-    sin_errores()
+    interactuar("modo", "Aleatorio")
+    interactuar("FormSubmitter:generador-Generar otro grafo")
+    interactuar("iniciar")
+    interactuar("final")
     assert app.success
-    app.checkbox(key="multiples_ui").check().run()
-    app.multiselect(key="fuentes_ui").set_value([]).run()
-    sin_errores()
+    interactuar("multiples_ui")
+    interactuar("fuentes_ui", [])
     assert app.error and app.session_state["resultado"] is None
-    app.button(key="vaciar").click().run()
-    sin_errores()
+    interactuar("vaciar")
     assert not app.session_state["aristas"]
 
     # Una red manual nueva debe olvidar incluso posiciones y widgets del ejemplo.
-    app.selectbox(key="ejemplo").select(2).run()
-    app.button(key="cargar_ejemplo").click().run()
-    app.button(key="iniciar").click().run()
-    app.button(key="final").click().run()
-    app.radio(key="modo").set_value("Crear grafo manual").run()
-    sin_errores()
+    interactuar("ejemplo", 2)
+    interactuar("cargar_ejemplo")
+    interactuar("iniciar")
+    interactuar("final")
+    interactuar("modo", "Crear grafo manual")
     for clave in ["nodos", "aristas", "fuentes", "sumideros", "iteraciones", "posiciones"]:
         assert not app.session_state[clave], clave
     assert app.session_state["fuente"] is None and app.session_state["sumidero"] is None
@@ -215,36 +196,32 @@ def probar_interfaz():
     assert app.session_state["vista_canvas"] is None
     assert app.button(key="iniciar").disabled
     for _ in range(2):
-        app.button(key="agregar_nodo").click().run()
+        interactuar("agregar_nodo")
     app.selectbox(key="origen_arista").select("A")
     app.selectbox(key="destino_arista").select("B")
     app.number_input(key="capacidad_arista").set_value(8)
-    next(b for b in app.button if b.label == "Agregar arista").click().run()
-    sin_errores()
+    interactuar("FormSubmitter:nueva_arista-Agregar arista")
     assert app.session_state["aristas"]["A", "B"] == 8
     assert app.button(key="iniciar").disabled  # Todavía hay menos de siete nodos.
     for _ in range(5):
-        app.button(key="agregar_nodo").click().run()
+        interactuar("agregar_nodo")
     app.selectbox(key="fuente_ui").select("A")
-    app.selectbox(key="sumidero_ui").select("B").run()
+    interactuar("sumidero_ui", "B")
     assert not app.button(key="iniciar").disabled
-    app.button(key="iniciar").click().run()
-    app.button(key="final").click().run()
-    sin_errores()
+    interactuar("iniciar")
+    interactuar("final")
     assert app.session_state["resultado"]["maximo"] == 8
     final = next(df.value for df in app.dataframe if "Capacidad/Flujo" in df.value.columns)
     assert final.iloc[0]["Capacidad/Flujo"] == "8/8"
     for _ in range(9):
-        app.button(key="agregar_nodo").click().run()
+        interactuar("agregar_nodo")
     assert app.button(key="agregar_nodo").disabled and len(app.session_state["nodos"]) == 16
-    app.number_input(key="n").set_value(17).run()
-    sin_errores()
+    interactuar("n", 17)
     assert app.error
-    app.number_input(key="n").set_value(7).run()
-    app.button(key="nueva_manual").click().run()
+    interactuar("n", 7)
+    interactuar("nueva_manual")
     assert not app.session_state["nodos"]
-    app.button(key="crear_nodos").click().run()
-    sin_errores()
+    interactuar("crear_nodos")
     assert app.session_state["nodos"] == crear_nodos(7) and not app.session_state["aristas"]
     print("OK: interfaz, ejemplos, reinicio manual completo, creación incremental, límites 7/16, edición, bloqueo de ciclos y resultados.")
 
