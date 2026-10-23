@@ -262,16 +262,6 @@ def texto_camino(camino):
     return " → ".join([camino[0]["origen"]] + [p["destino"] for p in camino])
 
 
-#def tabla_etiquetas(nodos, etiquetas):
-#    filas = []
-#    for nodo in nodos:
-#        e = etiquetas.get(nodo)
-#        filas.append({"Nodo": nodo, "Predecesor": (e["predecesor"] or "—") if e else "Sin etiqueta",
-#                    "Signo": (e["signo"] or "—") if e else "—",
-#                    "Delta": ("∞" if e["delta"] is None else str(e["delta"])) if e else "—"})
-#    return filas
-
-
 def tabla_historial(iteraciones):
     return [{"Iteración": p["numero"], "Camino aumentante": texto_camino(p["camino"]),
             "Delta": p["delta"], "Flujo agregado": f"+{p['agregado']}",
@@ -559,8 +549,6 @@ if resultado is not None:
                         "Capacidad/flujo · ámbar grueso: aristas del camino · rojo discontinuo: saturadas.")
     st.caption(("En la red de flujo final, el color indica el conjunto S o T. " if final else "Fuente: rojo · sumidero: negro · ") +
             "Sumideros: cuadrados · nodos ficticios: rombos. Las posiciones permanecen fijas entre pasos.")
-    #st.markdown("**Etiquetas del procedimiento**")
-    #st.dataframe(tabla_etiquetas(resultado["nodos"], etiquetas), hide_index=True, width="stretch")
     if actual:
         with st.expander("Camino y capacidades residuales antes del aumento"):
             st.dataframe([{
@@ -594,7 +582,6 @@ if resultado is not None:
 else:
     st.caption("Configura una red válida e inicia el algoritmo para recorrer sus estados.")
 
-#with st.expander("Aplicaciones del flujo máximo"):
 st.subheader("Aplicaciones del flujo máximo")
 st.markdown("""
 - **Logística y transporte:** capacidad = vehículos por hora; flujo = vehículos enviados.
