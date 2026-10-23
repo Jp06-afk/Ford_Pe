@@ -1,6 +1,7 @@
 """Pruebas con asserts. Ejecutar: python test_algorithm.py"""
 
 from itertools import combinations
+import json
 from pathlib import Path
 import sys
 
@@ -9,6 +10,7 @@ from ford_fulkerson import (
     agregar_arista, cargar_ejemplo, crear_nodos, detectar_ciclo, ford_fulkerson,
     generar_grafo, preparar_red, validar_grafo,
 )
+from disposicion_grafo import POSICIONES_EJEMPLOS, posiciones_del_corte
 
 
 def debe_fallar(funcion, *args):
@@ -70,6 +72,12 @@ def ejecutar_pruebas():
     for numero, esperado in [(1, 14), (2, 18), (3, 2), (4, 8)]:
         datos = cargar_ejemplo(numero)
         resultado = ford_fulkerson(*datos)
+        assert set(POSICIONES_EJEMPLOS[numero]) == set(resultado["nodos"])
+        posiciones_corte = posiciones_del_corte(resultado["corte"])
+        assert set(posiciones_corte) == set(resultado["nodos"])
+        assert len(set(posiciones_corte.values())) == len(resultado["nodos"])
+        assert all(posiciones_corte[n][0] < 0 for n in resultado["corte"]["S"])
+        assert all(posiciones_corte[n][0] > 0 for n in resultado["corte"]["T"])
         assert resultado["maximo"] == esperado
         assert len(resultado["iteraciones"]) > 1
         comprobar_resultado(resultado)
@@ -145,6 +153,8 @@ def probar_interfaz():
         app.selectbox(key="ejemplo").select(ejemplo).run()
         app.button(key="cargar_ejemplo").click().run()
         sin_errores()
+        assert app.session_state["posiciones"] == POSICIONES_EJEMPLOS[ejemplo]
+        assert not app.get("plotly_chart"), "El corte solo se presenta al terminar."
         assert app.number_input(key="n").value == len(app.session_state["nodos"])
         app.button(key="iniciar").click().run()
         sin_errores()
@@ -159,8 +169,23 @@ def probar_interfaz():
         app.button(key="final").click().run()
         sin_errores()
         assert any(f"FLUJO MÁXIMO = {esperado}" in e.value for e in app.success)
+        corte = app.session_state["resultado"]["corte"]
+        tabla_corte = next(df.value for df in app.dataframe
+                           if "Arista del corte (S → T)" in df.value.columns)
+        assert tabla_corte["Capacidad"].sum() == esperado
+        assert (tabla_corte["Residual disponible"] == 0).all()
+        assert set(tabla_corte["Arista del corte (S → T)"]) == {
+            f"{u} → {v}" for u, v in corte["aristas"]}
+        figura_corte = json.loads(app.get("plotly_chart")[0].proto.spec)
+        meta = figura_corte["layout"]["meta"]
+        assert {(e["u"], e["v"]) for e in meta["aristas"]
+                if figura_corte["data"][e["traza"]]["line"]["width"] == 6} == set(corte["aristas"])
+        assert all(meta["posiciones"][n][0] < 0 for n in corte["S"])
+        assert all(meta["posiciones"][n][0] > 0 for n in corte["T"])
+        assert app.session_state["posiciones"] == POSICIONES_EJEMPLOS[ejemplo]
         app.button(key="anterior").click().run()
         sin_errores()
+        assert not app.get("plotly_chart")
 
     # Aumentar el tamaño de una red con letras no consecutivas conserva sus aristas.
     aristas_ejemplo = dict(app.session_state["aristas"])

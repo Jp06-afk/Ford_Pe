@@ -33,6 +33,7 @@ con Ctrl+C. Ejecuta desde esta carpeta para que se cargue el tema visual.
 | `ford_fulkerson.py` | Validación, ejemplos, generación, residual, etiquetas, actualización y corte manual. |
 | `app.py` | Interfaz Streamlit, estado de la sesión y gráficos Plotly. |
 | `canvas_grafo.py` | Adaptador de gestos sobre las mismas figuras Plotly: desplazar, mover nodos y zoom. |
+| `disposicion_grafo.py` | Coordenadas editables de los ejemplos y separación visual de S/T en el corte mínimo. |
 | `test_algorithm.py` | Pruebas con asserts y comprobación opcional de la interfaz. |
 | `requirements.txt` | Solo Streamlit, NetworkX y Plotly, en las versiones utilizadas. |
 | `.streamlit/config.toml` | Tema nativo rojo/blanco y sidebar oscuro, sin CSS ni imágenes externas. |
@@ -68,11 +69,25 @@ Reutiliza el Plotly instalado, sin CDN, dependencias adicionales ni compilación
    y consultar el residual de cada paso del camino. Todas las etiquetas muestran
    **capacidad/flujo**: por ejemplo, `8/0` antes de enviar flujo y `8/5` después.
    La residual sigue mostrando únicamente la capacidad residual disponible.
-6. En el estado final revisa el corte y descarga el informe TXT.
+6. En el estado final revisa **Corte mínimo identificado**: S aparece en azul,
+   T en naranja, con una línea divisoria y las aristas del corte en rojo grueso.
+   La tabla enumera sus capacidades y la suma explícita confirma el valor del
+   flujo máximo. Este esquema separado conserva la red y los flujos; los gráficos
+   de flujo y residual mantienen sus posiciones habituales. Descarga el informe TXT.
 
 Editar el grafo, cambiar n o cambiar los terminales descarta los resultados
 anteriores. Los estados son propios de cada sesión y se pierden al cerrarla.
 El historial solo muestra incrementos ya aplicados en la vista elegida.
+
+### Ordenar los ejemplos desde el código
+
+Edita `POSICIONES_EJEMPLOS` en `disposicion_grafo.py`. Cada número de ejemplo
+contiene coordenadas `(x, y)` por nodo: x aumenta hacia la derecha e y hacia arriba.
+Usa valores entre -1 y 1; por ejemplo, `"A": (-1.0, 0.0)` sitúa A a la izquierda
+y `"Z": (1.0, 0.0)` sitúa Z a la derecha. Incluye S* y T* si hay múltiples terminales.
+Pulsa **Cargar ejemplo** para restaurar sus coordenadas tras mover nodos a mano.
+Los nodos que no tengan coordenadas configuradas usan la distribución automática
+de `obtener_posiciones()` en `app.py`.
 
 Los gráficos mantienen las posiciones y la vista entre iteraciones y entre
 las pestañas de flujo/residual. Arrastrar el fondo con clic izquierdo o derecho

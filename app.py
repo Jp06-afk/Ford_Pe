@@ -12,10 +12,11 @@ from ford_fulkerson import (
     detectar_ciclo, ford_fulkerson, generar_grafo, preparar_red, validar_grafo,
 )
 from canvas_grafo import mostrar_canvas
+from disposicion_grafo import POSICIONES_EJEMPLOS, posiciones_del_corte
 
 
 st.set_page_config(page_title="Flujo máximo · Matemática computacional",
-                   page_icon=":material/hub:", layout="centered")
+                page_icon=":material/hub:", layout="centered")
 
 
 def invalidar_resultados():
@@ -34,8 +35,8 @@ def reemplazar_red(nodos, aristas, fuentes=None, sumideros=None):
     estado.multiples = len(estado.fuentes) > 1 or len(estado.sumideros) > 1
     # Se ejecuta antes de construir los selectores de terminales de esta pasada.
     claves = ("fuente_ui", "sumidero_ui", "fuentes_ui", "sumideros_ui", "multiples_ui",
-              "origen_arista", "destino_arista", "capacidad_arista", "arista_editar",
-              "seleccion", "momento", "nombre_nodo")
+            "origen_arista", "destino_arista", "capacidad_arista", "arista_editar",
+            "seleccion", "momento", "nombre_nodo")
     for clave in list(estado):
         if clave in claves or clave.startswith("editar_"):
             estado.pop(clave, None)
@@ -66,10 +67,15 @@ def agregar_nodo_manual():
         invalidar_resultados()
 
 
-def usar_ejemplo():
-    reemplazar_red(*cargar_ejemplo(st.session_state.ejemplo))
+def cargar_red_ejemplo(numero):
+    reemplazar_red(*cargar_ejemplo(numero))
+    st.session_state.posiciones = dict(POSICIONES_EJEMPLOS.get(numero, {}))
     st.session_state.n = len(st.session_state.nodos)
     st.session_state.modo = "Ejemplo cargado"
+
+
+def usar_ejemplo():
+    cargar_red_ejemplo(st.session_state.ejemplo)
 
 
 def cambiar_n():
@@ -85,7 +91,7 @@ def cambiar_n():
     faltantes = [nodo for nodo in LETRAS_NODOS if nodo not in nodos]
     nodos += faltantes[:st.session_state.n - len(nodos)]
     aristas = {e: c for e, c in st.session_state.aristas.items()
-               if e[0] in nodos and e[1] in nodos}
+            if e[0] in nodos and e[1] in nodos}
     reemplazar_red(nodos, aristas, [], [])
 
 
@@ -111,8 +117,8 @@ def posiciones_actuales(nodos, aristas):
 
 
 def dibujar_grafo(nodos, capacidades, posiciones, fuentes, sumideros,
-                  flujo=None, residual=None, camino=None, corte=None, etiquetas=None,
-                  mostrar_valores=True, ciclo=None):
+                flujo=None, residual=None, camino=None, corte=None, etiquetas=None,
+                mostrar_valores=True, ciclo=None, particion=None):
     figura = go.Figure()
     pasos = camino or []
     recorrido = {(p["origen"], p["destino"]) for p in pasos}
@@ -125,9 +131,10 @@ def dibujar_grafo(nodos, capacidades, posiciones, fuentes, sumideros,
         saturada = flujo is not None and residual is None and flujo[u, v] == capacidades[u, v]
         en_corte = corte is not None and (u, v) in corte
         en_ciclo = ciclo is not None and (u, v) in ciclo
-        color = "#DC2626" if en_ciclo else "#9F1239" if en_corte else "#B45309" if actual else "#7C3AED" if inversa else "#DC2626" if saturada else "#64748B"
-        ancho = 4 if actual or en_corte or en_ciclo else 2
-        estilo = "dash" if inversa or saturada else "solid"
+        color = "#DC2626" if en_ciclo else "#B91C1C" if en_corte else "#CBD5E1" if particion else "#B45309" if actual else "#7C3AED" if inversa else "#DC2626" if saturada else "#64748B"
+        ancho = 6 if en_corte else 4 if actual or en_ciclo else 2
+        estilo = "solid" if particion else "dash" if inversa or saturada else "solid"
+        mostrar_etiqueta = mostrar_valores or en_corte
         x0, y0 = posiciones[u]
         x1, y1 = posiciones[v]
         dx, dy = x1 - x0, y1 - y0
@@ -147,9 +154,12 @@ def dibujar_grafo(nodos, capacidades, posiciones, fuentes, sumideros,
         else:
             valor = f"{dato}/{0 if flujo is None else flujo[u, v]}"
             detalle = f"Capacidad / flujo: {valor}"
+        if en_corte:
+            detalle = "Arista del corte mínimo S → T · " + detalle
+            valor = f"<b>{u} → {v}: {valor}</b>"
         geometria.append({"u": u, "v": v, "curva": curva, "traza": len(figura.data),
-                          "flecha": len(figura.layout.annotations),
-                          "texto": len(figura.layout.annotations) + 1 if mostrar_valores else None})
+                        "flecha": len(figura.layout.annotations),
+                        "texto": len(figura.layout.annotations) + 1 if mostrar_etiqueta else None})
         figura.add_trace(go.Scatter(
             x=[p[0] for p in puntos], y=[p[1] for p in puntos], mode="lines",
             line=dict(color=color, width=ancho, dash=estilo),
@@ -158,21 +168,24 @@ def dibujar_grafo(nodos, capacidades, posiciones, fuentes, sumideros,
         ))
         punta, cola = punto(0.90), punto(0.80)
         figura.add_annotation(x=punta[0], y=punta[1], ax=cola[0], ay=cola[1],
-                              xref="x", yref="y", axref="x", ayref="y", text="",
-                              showarrow=True, arrowhead=2, arrowsize=1.2,
-                              arrowwidth=ancho, arrowcolor=color)
-        if mostrar_valores:
+                            xref="x", yref="y", axref="x", ayref="y", text="",
+                            showarrow=True, arrowhead=2, arrowsize=1.2,
+                            arrowwidth=ancho, arrowcolor=color)
+        if mostrar_etiqueta:
             centro = punto(0.5)
             figura.add_annotation(x=centro[0], y=centro[1], text=valor, showarrow=False,
-                                  font=dict(size=12, color=color), bgcolor="rgba(255,255,255,0.94)",
-                                  borderpad=2, hovertext=f"{u} → {v}: {detalle}")
+                                font=dict(size=14 if en_corte else 12, color=color), bgcolor="rgba(255,255,255,0.94)",
+                                borderpad=2, hovertext=f"{u} → {v}: {detalle}")
     colores, formas, textos = [], [], []
     for nodo in nodos:
         en_ciclo = ciclo and any(nodo in arista for arista in ciclo)
-        colores.append("#DC2626" if en_ciclo else "#BE123C" if nodo in fuentes else "#18181B" if nodo in sumideros else "#475569")
+        colores.append(("#2563EB" if nodo in particion["S"] else "#C2410C") if particion else
+                    "#DC2626" if en_ciclo else "#BE123C" if nodo in fuentes else "#18181B" if nodo in sumideros else "#475569")
         formas.append("diamond" if "*" in nodo else "square" if nodo in sumideros else "circle")
         rol = "Fuente" if nodo in fuentes else "Sumidero" if nodo in sumideros else "Nodo intermedio"
         texto = f"{nodo} · {rol}" + (" ficticio" if "*" in nodo else "")
+        if particion:
+            texto += "<br>Conjunto " + ("S · lado de la fuente" if nodo in particion["S"] else "T · lado del sumidero")
         if etiquetas and nodo in etiquetas:
             e = etiquetas[nodo]
             valor = "(−, ∞)" if e["predecesor"] is None else f"({e['predecesor']}{e['signo']}, {e['delta']})"
@@ -192,9 +205,55 @@ def dibujar_grafo(nodos, capacidades, posiciones, fuentes, sumideros,
         yaxis=dict(visible=False, range=[-1.22, 1.22]),
         hovermode="closest", uirevision=str(tuple(nodos)) + str(tuple(capacidades)),
         dragmode=False, meta={"aristas": geometria, "nodos": list(nodos),
-                              "posiciones": posiciones},
+                            "posiciones": posiciones},
     )
     return figura
+
+
+def mostrar_corte_minimo(resultado):
+    corte = resultado["corte"]
+    st.subheader("05 · Corte mínimo identificado")
+    mensaje = f"FLUJO MÁXIMO = {resultado['maximo']} · CAPACIDAD DEL CORTE MÍNIMO = {corte['capacidad']}"
+    if resultado["maximo"] == corte["capacidad"]:
+        st.success(mensaje)
+    else:
+        st.error(mensaje + ". La igualdad no se cumple; revisa la red.")
+    st.markdown("**S · lado de la fuente:** {" + ", ".join(corte["S"]) + "}")
+    st.markdown("**T · lado del sumidero:** {" + ", ".join(corte["T"]) + "}")
+    figura = dibujar_grafo(
+        resultado["nodos"], resultado["capacidades"], posiciones_del_corte(corte),
+        resultado["fuentes"] + [resultado["fuente"]],
+        resultado["sumideros"] + [resultado["sumidero"]],
+        flujo=resultado["flujo"], corte=corte["aristas"], particion=corte,
+        mostrar_valores=False,
+    )
+    figura.add_vrect(x0=-1.2, x1=0, fillcolor="#EFF6FF", opacity=1, line_width=0, layer="below")
+    figura.add_vrect(x0=0, x1=1.2, fillcolor="#FFF7ED", opacity=1, line_width=0, layer="below")
+    figura.add_shape(type="line", x0=0, x1=0, y0=-1.0, y1=1.0,
+                    line=dict(color="#18181B", width=3, dash="dash"))
+    for x, texto, color in [(-0.65, "S · LADO DE LA FUENTE", "#2563EB"),
+                            (0.65, "T · LADO DEL SUMIDERO", "#C2410C")]:
+        figura.add_annotation(x=x, y=1.12, text=f"<b>{texto}</b>", showarrow=False,
+                            font=dict(color=color, size=13))
+    figura.update_layout(height=max(480, 60 * max(len(corte["S"]), len(corte["T"])) + 100),
+                        margin=dict(l=15, r=15, t=15, b=15),
+                        yaxis=dict(range=[-1.25, 1.3]))
+    st.plotly_chart(figura, key="corte_minimo", width="stretch", config={"displayModeBar": False})
+    st.caption("Azul: conjunto S · naranja: conjunto T · línea negra discontinua: separación S/T. "
+            "Las aristas rojas gruesas que van de S a T forman el corte mínimo; sus etiquetas indican capacidad/flujo.")
+    nombres = ", ".join(f"{u} → {v}" for u, v in sorted(corte["aristas"]))
+    st.markdown(f"**Aristas del corte mínimo:** {nombres}.")
+    st.dataframe([{"Arista del corte (S → T)": f"{u} → {v}", "Capacidad": c,
+                "Flujo": resultado["flujo"][u, v],
+                "Residual disponible": c - resultado["flujo"][u, v]}
+                for (u, v), c in sorted(corte["aristas"].items())],
+                hide_index=True, width="stretch", key="tabla_corte_minimo")
+    suma = " + ".join(str(c) for _, c in sorted(corte["aristas"].items())) or "0"
+    st.markdown(f"**Capacidad del corte:** {suma} = **{corte['capacidad']}** = flujo máximo.")
+    st.caption("S contiene los nodos alcanzables desde la fuente en la red residual final; T contiene los demás. "
+            "Al retirar las aristas del corte se interrumpen todos los caminos de la fuente al sumidero. "
+            "Solo se suman las capacidades originales en dirección S → T, no las de T → S. "
+            "S* y T*, si aparecen, son terminales ficticios.")
 
 
 def texto_camino(camino):
@@ -208,21 +267,21 @@ def tabla_etiquetas(nodos, etiquetas):
     for nodo in nodos:
         e = etiquetas.get(nodo)
         filas.append({"Nodo": nodo, "Predecesor": (e["predecesor"] or "—") if e else "Sin etiqueta",
-                      "Signo": (e["signo"] or "—") if e else "—",
-                      "Delta": ("∞" if e["delta"] is None else str(e["delta"])) if e else "—"})
+                    "Signo": (e["signo"] or "—") if e else "—",
+                    "Delta": ("∞" if e["delta"] is None else str(e["delta"])) if e else "—"})
     return filas
 
 
 def tabla_historial(iteraciones):
     return [{"Iteración": p["numero"], "Camino aumentante": texto_camino(p["camino"]),
-             "Delta": p["delta"], "Flujo agregado": f"+{p['agregado']}",
-             "Flujo acumulado": p["total"]} for p in iteraciones]
+            "Delta": p["delta"], "Flujo agregado": f"+{p['agregado']}",
+            "Flujo acumulado": p["total"]} for p in iteraciones]
 
 
 def exportar_resultado(resultado):
     lineas = ["FORD-FULKERSON · RESULTADOS", f"Flujo máximo: {resultado['maximo']}",
-              "Fuentes: " + ", ".join(resultado["fuentes"]),
-              "Sumideros: " + ", ".join(resultado["sumideros"]), "", "ARISTAS (capacidad/flujo)"]
+            "Fuentes: " + ", ".join(resultado["fuentes"]),
+            "Sumideros: " + ", ".join(resultado["sumideros"]), "", "ARISTAS (capacidad/flujo)"]
     for (u, v), c in sorted(resultado["capacidades"].items()):
         extra = " [conexión ficticia]" if "*" in u + v else ""
         lineas.append(f"{u} -> {v}: {c}/{resultado['flujo'][u, v]}{extra}")
@@ -232,16 +291,14 @@ def exportar_resultado(resultado):
         lineas.append(f"{p['numero']}: {texto_camino(p['camino'])}; Delta={p['delta']}; agregado=+{p['agregado']}; total={p['total']}; {signos}")
     corte = resultado["corte"]
     lineas.extend(["", "CORTE MÍNIMO", "S = {" + ", ".join(corte["S"]) + "}",
-                   "T = {" + ", ".join(corte["T"]) + "}"])
+                "T = {" + ", ".join(corte["T"]) + "}"])
     lineas.extend(f"{u} -> {v}: {c}" for (u, v), c in sorted(corte["aristas"].items()))
     lineas.append(f"Capacidad del corte: {corte['capacidad']} = flujo máximo: {resultado['maximo']}")
     return "\n".join(lineas)
 
 
 if "nodos" not in st.session_state:
-    reemplazar_red(*cargar_ejemplo(1))
-    st.session_state.n = 7
-    st.session_state.modo = "Ejemplo cargado"
+    cargar_red_ejemplo(1)
 estado = st.session_state
 estado.setdefault("posiciones", {})
 estado.setdefault("vista_canvas", None)
@@ -256,7 +313,7 @@ with st.sidebar:
     st.markdown("**Ford-Fulkerson**\n\nExplora cómo cada camino aumenta el flujo de una red.")
     st.selectbox("Ejemplos", [1, 2, 3, 4], key="ejemplo", format_func=lambda n: {
         1: "1 · Fuente y sumidero únicos", 2: "2 · Múltiples fuentes y sumideros",
-        3: "3 · Devolver flujo: etiqueta −", 4: "4 · Red A → Z"}[n])
+        3: "3 · Flujo con retroceso", 4: "4 · Ejemplo del Informe"}[n])
     st.button("Cargar ejemplo", key="cargar_ejemplo", on_click=usar_ejemplo, width="stretch")
     st.caption("Cargar un ejemplo reemplaza la red actual. Se admiten nodos con letras de A a Z.")
     st.markdown("**Recorrido de la práctica**\n\n01 · Configurar\n\n02 · Construir\n\n03 · Elegir terminales\n\n04 · Explorar pasos\n\n05 · Verificar el corte")
@@ -291,22 +348,22 @@ Solo el grafo original debe ser acíclico: los ciclos residuales son válidos.
 st.subheader("01 · Configuración de la red")
 st.number_input(f"Número de nodos ({MIN_NODOS} a {MAX_NODOS})", step=1, key="n", on_change=cambiar_n)
 st.radio("Método de construcción", ["Ejemplo cargado", "Crear grafo manual", "Aleatorio"],
-         key="modo", horizontal=True, on_change=cambiar_modo)
+        key="modo", horizontal=True, on_change=cambiar_modo)
 try:
     crear_nodos(estado.n)
 except ValueError as error:
     st.error(str(error))
     st.stop()
 st.caption(f"Nodos creados: {len(estado.nodos)}/{MAX_NODOS} · " + (", ".join(estado.nodos) or "Red vacía") +
-           f". Para ejecutar se requieren entre {MIN_NODOS} y {MAX_NODOS}. Cambiar n ajusta una red ya creada.")
+        f". Para ejecutar se requieren entre {MIN_NODOS} y {MAX_NODOS}. Cambiar n ajusta una red ya creada.")
 if estado.modo == "Crear grafo manual":
     st.selectbox("Nombre del nuevo nodo", [nodo for nodo in LETRAS_NODOS if nodo not in estado.nodos],
-                 key="nombre_nodo", disabled=len(estado.nodos) >= MAX_NODOS)
+                key="nombre_nodo", disabled=len(estado.nodos) >= MAX_NODOS)
     with st.container(horizontal=True):
         st.button("Crear los n nodos", key="crear_nodos", on_click=crear_nodos_manuales,
-                  disabled=bool(estado.nodos))
+                disabled=bool(estado.nodos))
         st.button("Agregar nodo", key="agregar_nodo", on_click=agregar_nodo_manual,
-                  disabled=len(estado.nodos) >= MAX_NODOS)
+                disabled=len(estado.nodos) >= MAX_NODOS)
         st.button("Nueva red manual", key="nueva_manual", on_click=cambiar_modo)
 
 st.subheader("02 · Construcción y visualización")
@@ -342,9 +399,9 @@ elif len(estado.nodos) >= 2:
 with st.expander("Editar o eliminar aristas"):
     if estado.aristas:
         arista = st.selectbox("Arista", sorted(estado.aristas),
-                              format_func=lambda e: f"{e[0]} → {e[1]}", key="arista_editar")
+                            format_func=lambda e: f"{e[0]} → {e[1]}", key="arista_editar")
         nueva = st.number_input("Nueva capacidad", value=estado.aristas[arista], step=1,
-                                 key=f"editar_{arista}_{estado.aristas[arista]}")
+                                key=f"editar_{arista}_{estado.aristas[arista]}")
         with st.container(horizontal=True):
             modificar = st.button("Modificar capacidad", key="modificar")
             eliminar = st.button("Eliminar arista", key="eliminar")
@@ -366,14 +423,14 @@ with st.expander("Editar o eliminar aristas"):
         st.caption("La red está vacía. Agrega aristas o carga un ejemplo.")
 with st.expander(f"Tabla de aristas · {len(estado.aristas)} conexiones"):
     st.dataframe([{"Origen": u, "Destino": v, "Capacidad": c}
-                  for (u, v), c in sorted(estado.aristas.items())], hide_index=True, width="stretch")
+                for (u, v), c in sorted(estado.aristas.items())], hide_index=True, width="stretch")
 vista_previa = st.container()
 ciclo_actual = detectar_ciclo(estado.nodos, estado.aristas)
 if ciclo_actual:
     invalidar_resultados()
     recorrido_ciclo = [u for u, _ in ciclo_actual] + [ciclo_actual[0][0]]
     st.error("Ciclo detectado: " + " → ".join(recorrido_ciclo) +
-             ". Está resaltado en rojo. Elimina una de sus aristas para poder ejecutar.")
+            ". Está resaltado en rojo. Elimina una de sus aristas para poder ejecutar.")
 
 st.subheader("03 · Fuente y sumidero")
 estado.setdefault("multiples_ui", estado.multiples)
@@ -424,7 +481,7 @@ with vista_previa:
 
 st.subheader("04 · Ford-Fulkerson paso a paso")
 if st.button("Iniciar Ford-Fulkerson", type="primary", key="iniciar",
-             disabled=red is None or estado.resultado is not None):
+            disabled=red is None or estado.resultado is not None):
     try:
         with st.spinner("Calculando etiquetas y caminos aumentantes…"):
             estado.resultado = ford_fulkerson(estado.nodos, estado.aristas, fuentes, sumideros)
@@ -441,11 +498,11 @@ if resultado is not None:
     indice = estado.paso
     with st.container(horizontal=True):
         st.button("Anterior", key="anterior", disabled=indice == 0,
-                  on_click=mover_paso, args=(indice - 1,))
+                on_click=mover_paso, args=(indice - 1,))
         st.button("Siguiente", key="siguiente", disabled=indice == ultimo,
-                  on_click=mover_paso, args=(indice + 1,))
+                on_click=mover_paso, args=(indice + 1,))
         st.button("Ver resultado final", key="final", disabled=indice == ultimo,
-                  on_click=mover_paso, args=(ultimo,))
+                on_click=mover_paso, args=(ultimo,))
         st.button("Reiniciar algoritmo", key="reiniciar", on_click=invalidar_resultados)
     st.progress(indice / ultimo, text=f"Estado {indice} de {ultimo} · incluye inicio y comprobación final")
     final = indice == ultimo
@@ -480,6 +537,9 @@ if resultado is not None:
         st.markdown("### Estado inicial · flujo cero")
         st.caption("La fuente tiene la etiqueta (−, ∞). Pulsa Siguiente para explorar la primera iteración.")
     st.metric("Flujo representado en los gráficos", total)
+    if final:
+        mostrar_corte_minimo(resultado)
+        st.markdown("**Red de flujo y red residual al terminar**")
     posiciones = posiciones_actuales(resultado["nodos"], resultado["capacidades"])
     tab_flujo, tab_residual = st.tabs(["Red de flujo", "Red residual"])
     for tab, es_residual in [(tab_flujo, False), (tab_residual, True)]:
@@ -489,13 +549,16 @@ if resultado is not None:
                 fuentes + [resultado["fuente"]], sumideros + [resultado["sumidero"]],
                 flujo=flujo, residual=residual if es_residual else None, camino=camino,
                 corte=resultado["corte"]["aristas"] if final and not es_residual else None,
+                particion=resultado["corte"] if final and not es_residual else None,
                 etiquetas=etiquetas, mostrar_valores=mostrar_valores),
                 key="residual" if es_residual else "flujo")
             if es_residual:
                 st.caption("Gris continuo: residual directa (+) · violeta discontinuo: inversa (−) · ámbar grueso: camino actual. Solo se dibujan residuales positivas.")
             else:
-                st.caption("Capacidad/flujo · ámbar grueso: aristas del camino · rojo discontinuo: saturadas · granate grueso: corte mínimo final.")
-    st.caption("Fuente: rojo · sumidero: negro · nodos ficticios: rombos. Las posiciones permanecen fijas entre pasos.")
+                st.caption("Azul: S · naranja: T · rojo grueso: aristas del corte mínimo (S → T)." if final else
+                        "Capacidad/flujo · ámbar grueso: aristas del camino · rojo discontinuo: saturadas.")
+    st.caption(("En la red de flujo final, el color indica el conjunto S o T. " if final else "Fuente: rojo · sumidero: negro · ") +
+            "Sumideros: cuadrados · nodos ficticios: rombos. Las posiciones permanecen fijas entre pasos.")
     st.markdown("**Etiquetas del procedimiento**")
     st.dataframe(tabla_etiquetas(resultado["nodos"], etiquetas), hide_index=True, width="stretch")
     if actual:
@@ -509,11 +572,11 @@ if resultado is not None:
             } for p in actual["camino"]], hide_index=True, width="stretch")
         with st.expander("Cambios de flujo en esta iteración"):
             st.dataframe([{"Arista": f"{u} → {v}", "Antes": actual["flujo_antes"][u, v],
-                           "Después": actual["flujo_despues"][u, v], "Capacidad": c}
-                          for (u, v), c in sorted(resultado["capacidades"].items())], hide_index=True, width="stretch")
+                        "Después": actual["flujo_despues"][u, v], "Capacidad": c}
+                        for (u, v), c in sorted(resultado["capacidades"].items())], hide_index=True, width="stretch")
     with st.expander("Capacidades de la red residual"):
         st.dataframe([{"Origen": u, "Destino": v, "Residual": a["capacidad"], "Signo": a["signo"]}
-                      for (u, v), a in sorted(residual.items())], hide_index=True, width="stretch")
+                    for (u, v), a in sorted(residual.items())], hide_index=True, width="stretch")
     st.markdown("**Historial de iteraciones**")
     vistos = len(pasos) if final else max(0, indice - int(antes))
     if vistos:
@@ -522,25 +585,12 @@ if resultado is not None:
         st.caption("Todavía no se ha aplicado ningún aumento de flujo en la vista actual.")
 
     if final:
-        st.subheader("05 · Resultado y corte mínimo")
-        certificado = resultado["maximo"] == resultado["corte"]["capacidad"]
-        mensaje_final = f"FLUJO MÁXIMO = {resultado['maximo']} · CAPACIDAD DEL CORTE MÍNIMO = {resultado['corte']['capacidad']}"
-        if certificado:
-            st.success(mensaje_final)
-        else:
-            st.error(mensaje_final + ". La igualdad no se cumple; revisa la red.")
-        st.dataframe([{"Origen": u, "Destino": v, "Flujo": flujo[u, v], "Capacidad": c,
-                       "Capacidad/Flujo": f"{c}/{flujo[u, v]}"}
-                      for (u, v), c in sorted(resultado["originales"].items())], hide_index=True, width="stretch")
-        corte = resultado["corte"]
-        st.code("S = {" + ", ".join(corte["S"]) + "}\nT = {" + ", ".join(corte["T"]) + "}", language=None)
-        st.caption("S contiene los nodos alcanzables desde la fuente en la red residual final; T contiene los demás, incluidos los ficticios si existen.")
-        st.dataframe([{"Origen (S)": u, "Destino (T)": v, "Capacidad": c}
-                      for (u, v), c in sorted(corte["aristas"].items())], hide_index=True, width="stretch")
-        if certificado:
-            st.markdown("De acuerdo con el **teorema de Flujo Máximo – Corte Mínimo**, la igualdad entre ambos valores certifica que el flujo encontrado es máximo.")
+        with st.expander("Detalle de los flujos finales"):
+            st.dataframe([{"Origen": u, "Destino": v, "Flujo": flujo[u, v], "Capacidad": c,
+                        "Capacidad/Flujo": f"{c}/{flujo[u, v]}"}
+                        for (u, v), c in sorted(resultado["originales"].items())], hide_index=True, width="stretch")
         st.download_button("Descargar resultados TXT", exportar_resultado(resultado).encode("utf-8"),
-                           file_name="resultado_ford_fulkerson.txt", mime="text/plain", key="descargar")
+                        file_name="resultado_ford_fulkerson.txt", mime="text/plain", key="descargar")
 else:
     st.caption("Configura una red válida e inicia el algoritmo para recorrer sus estados.")
 
