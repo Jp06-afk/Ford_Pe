@@ -6,10 +6,15 @@ import string
 import networkx as nx
 
 
+LETRAS_NODOS = string.ascii_uppercase
+MIN_NODOS = 7
+MAX_NODOS = 16
+
+
 def crear_nodos(n):
-    if type(n) is not int or not 7 <= n <= 16:
-        raise ValueError("El número de nodos debe ser un entero entre 7 y 16.")
-    return list(string.ascii_uppercase[:n])
+    if type(n) is not int or not MIN_NODOS <= n <= MAX_NODOS:
+        raise ValueError(f"El número de nodos debe ser un entero entre {MIN_NODOS} y {MAX_NODOS}.")
+    return list(LETRAS_NODOS[:n])
 
 
 def validar_capacidad(capacidad):
@@ -28,14 +33,13 @@ def detectar_ciclo(nodos, capacidades):
 
 
 def validar_grafo(nodos, capacidades, en_construccion=False):
-    if en_construccion:
-        if len(nodos) > 16:
-            raise ValueError("La red admite como máximo 16 nodos.")
-        esperados = list(string.ascii_uppercase[:len(nodos)])
-    else:
-        esperados = crear_nodos(len(nodos))
-    if list(nodos) != esperados:
-        raise ValueError("Los nodos deben llamarse A, B, C, … en orden y sin repetir.")
+    if len(nodos) > MAX_NODOS:
+        raise ValueError(f"La red admite como máximo {MAX_NODOS} nodos.")
+    if not en_construccion and len(nodos) < MIN_NODOS:
+        raise ValueError(f"El número de nodos debe ser un entero entre {MIN_NODOS} y {MAX_NODOS}.")
+    if any(not isinstance(nodo, str) or len(nodo) != 1 or nodo not in LETRAS_NODOS
+           for nodo in nodos) or len(set(nodos)) != len(nodos):
+        raise ValueError("Los nodos deben ser letras mayúsculas de A a Z, sin repetir.")
     for (u, v), capacidad in capacidades.items():
         if u not in nodos or v not in nodos:
             raise ValueError("Los extremos de cada arista deben pertenecer a la red.")
@@ -236,4 +240,11 @@ def cargar_ejemplo(numero=1):
                                     ("B", "E"), ("C", "D"), ("D", "G"),
                                     ("E", "F"), ("F", "G")]}
         return nodos, capacidades, ["A"], ["G"]
-    raise ValueError("Elige un ejemplo entre 1 y 3.")
+    if numero == 4:
+        capacidades = {("A", "B"): 7, ("B", "D"): 5, ("D", "G"): 4,
+                       ("G", "Z"): 3, ("A", "S"): 2, ("S", "E"): 4,
+                       ("E", "H"): 5, ("H", "Z"): 6, ("B", "S"): 1,
+                       ("D", "S"): 3, ("D", "E"): 2, ("G", "H"): 3}
+        nodos = sorted({nodo for arista in capacidades for nodo in arista})
+        return nodos, capacidades, ["A"], ["Z"]
+    raise ValueError("Elige un ejemplo entre 1 y 4.")

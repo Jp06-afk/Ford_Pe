@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from ford_fulkerson import (
+    LETRAS_NODOS, MIN_NODOS, MAX_NODOS,
     agregar_arista, cargar_ejemplo, crear_nodos, crear_red_residual,
     detectar_ciclo, ford_fulkerson, generar_grafo, preparar_red, validar_grafo,
 )
@@ -34,7 +35,7 @@ def reemplazar_red(nodos, aristas, fuentes=None, sumideros=None):
     # Se ejecuta antes de construir los selectores de terminales de esta pasada.
     claves = ("fuente_ui", "sumidero_ui", "fuentes_ui", "sumideros_ui", "multiples_ui",
               "origen_arista", "destino_arista", "capacidad_arista", "arista_editar",
-              "seleccion", "momento")
+              "seleccion", "momento", "nombre_nodo")
     for clave in list(estado):
         if clave in claves or clave.startswith("editar_"):
             estado.pop(clave, None)
@@ -55,26 +56,34 @@ def crear_nodos_manuales():
 
 def agregar_nodo_manual():
     estado = st.session_state
-    if len(estado.nodos) < 16:
-        estado.nodos = estado.nodos + [chr(ord("A") + len(estado.nodos))]
-        estado.n = max(7, len(estado.nodos))
+    if len(estado.nodos) < MAX_NODOS:
+        siguiente = estado.nombre_nodo
+        if siguiente not in LETRAS_NODOS or siguiente in estado.nodos:
+            return
+        estado.nodos = estado.nodos + [siguiente]
+        estado.n = max(MIN_NODOS, len(estado.nodos))
+        estado.pop("nombre_nodo", None)
         invalidar_resultados()
 
 
 def usar_ejemplo():
     reemplazar_red(*cargar_ejemplo(st.session_state.ejemplo))
-    st.session_state.n = 7
+    st.session_state.n = len(st.session_state.nodos)
     st.session_state.modo = "Ejemplo cargado"
 
 
 def cambiar_n():
     try:
-        nodos = crear_nodos(st.session_state.n)
+        crear_nodos(st.session_state.n)
     except ValueError:
         invalidar_resultados()
         return
     if not st.session_state.nodos:
         return
+    # Conserva las letras del ejemplo; completa con las primeras disponibles.
+    nodos = list(st.session_state.nodos[:st.session_state.n])
+    faltantes = [nodo for nodo in LETRAS_NODOS if nodo not in nodos]
+    nodos += faltantes[:st.session_state.n - len(nodos)]
     aristas = {e: c for e, c in st.session_state.aristas.items()
                if e[0] in nodos and e[1] in nodos}
     reemplazar_red(nodos, aristas, [], [])
@@ -245,11 +254,11 @@ with st.sidebar:
     st.markdown("### Matemática computacional")
     st.caption("LABORATORIO DE GRAFOS")
     st.markdown("**Ford-Fulkerson**\n\nExplora cómo cada camino aumenta el flujo de una red.")
-    st.selectbox("Ejemplos", [1, 2, 3], key="ejemplo", format_func=lambda n: {
+    st.selectbox("Ejemplos", [1, 2, 3, 4], key="ejemplo", format_func=lambda n: {
         1: "1 · Fuente y sumidero únicos", 2: "2 · Múltiples fuentes y sumideros",
-        3: "3 · Devolver flujo: etiqueta −"}[n])
+        3: "3 · Devolver flujo: etiqueta −", 4: "4 · Red A → Z"}[n])
     st.button("Cargar ejemplo", key="cargar_ejemplo", on_click=usar_ejemplo, width="stretch")
-    st.caption("Cargar un ejemplo reemplaza la red actual. Cada ejemplo tiene 7 nodos.")
+    st.caption("Cargar un ejemplo reemplaza la red actual. Se admiten nodos con letras de A a Z.")
     st.markdown("**Recorrido de la práctica**\n\n01 · Configurar\n\n02 · Construir\n\n03 · Elegir terminales\n\n04 · Explorar pasos\n\n05 · Verificar el corte")
 
 st.caption("MATEMÁTICA COMPUTACIONAL / REDES DE FLUJO")
@@ -280,7 +289,7 @@ Solo el grafo original debe ser acíclico: los ciclos residuales son válidos.
 """)
 
 st.subheader("01 · Configuración de la red")
-st.number_input("Número de nodos (7 a 16)", step=1, key="n", on_change=cambiar_n)
+st.number_input(f"Número de nodos ({MIN_NODOS} a {MAX_NODOS})", step=1, key="n", on_change=cambiar_n)
 st.radio("Método de construcción", ["Ejemplo cargado", "Crear grafo manual", "Aleatorio"],
          key="modo", horizontal=True, on_change=cambiar_modo)
 try:
@@ -288,14 +297,16 @@ try:
 except ValueError as error:
     st.error(str(error))
     st.stop()
-st.caption(f"Nodos creados: {len(estado.nodos)}/16 · " + (", ".join(estado.nodos) or "Red vacía") +
-           ". Para ejecutar se requieren entre 7 y 16. Cambiar n ajusta una red ya creada.")
+st.caption(f"Nodos creados: {len(estado.nodos)}/{MAX_NODOS} · " + (", ".join(estado.nodos) or "Red vacía") +
+           f". Para ejecutar se requieren entre {MIN_NODOS} y {MAX_NODOS}. Cambiar n ajusta una red ya creada.")
 if estado.modo == "Crear grafo manual":
+    st.selectbox("Nombre del nuevo nodo", [nodo for nodo in LETRAS_NODOS if nodo not in estado.nodos],
+                 key="nombre_nodo", disabled=len(estado.nodos) >= MAX_NODOS)
     with st.container(horizontal=True):
         st.button("Crear los n nodos", key="crear_nodos", on_click=crear_nodos_manuales,
                   disabled=bool(estado.nodos))
         st.button("Agregar nodo", key="agregar_nodo", on_click=agregar_nodo_manual,
-                  disabled=len(estado.nodos) >= 16)
+                  disabled=len(estado.nodos) >= MAX_NODOS)
         st.button("Nueva red manual", key="nueva_manual", on_click=cambiar_modo)
 
 st.subheader("02 · Construcción y visualización")
@@ -322,8 +333,7 @@ elif len(estado.nodos) >= 2:
             agregar = st.form_submit_button("Agregar arista", type="primary")
         if agregar:
             try:
-                estado.aristas = agregar_arista(estado.nodos, estado.aristas, origen, destino,
-                                               capacidad, en_construccion=True)
+                estado.aristas = agregar_arista(estado.nodos, estado.aristas, origen, destino, capacidad, en_construccion=True)
                 invalidar_resultados()
                 st.success(f"Arista {origen} → {destino} agregada.")
             except ValueError as error:

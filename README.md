@@ -50,7 +50,10 @@ Reutiliza el Plotly instalado, sin CDN, dependencias adicionales ni compilación
    Esta selección borra por completo la red anterior, terminales, posiciones,
    flujos, historial y resultados. **Nueva red manual** permite repetir ese reinicio.
 2. En manual, usa **Crear los n nodos** (n entre 7 y 16) o **Agregar nodo**
-   para añadir A, B, C… individualmente. Puedes agregar aristas mientras construyes;
+   para añadir individualmente la letra elegida en **Nombre del nuevo nodo**.
+   Puedes usar cualquier letra mayúscula de A a Z, sin repetir ni exigir letras
+   consecutivas: el máximo sigue siendo 16 nodos, aunque uno de ellos se llame Z.
+   Puedes agregar aristas mientras construyes;
    ejecutar requiere obligatoriamente entre 7 y 16 nodos. Cambiar n ajusta una red
    ya creada y conserva solo las aristas cuyos extremos siguen existiendo.
    Edita las capacidades o elimina conexiones con los controles existentes.
@@ -89,6 +92,10 @@ camino; el trazo discontinuo permite reconocer un paso inverso incluso resaltado
 | 1. Fuente y sumidero únicos | A → G | 14 |
 | 2. Múltiples terminales | {A, B} → {F, G} | 18 |
 | 3. Devolver flujo | A → G | 2 |
+| 4. Red A → Z (8 nodos) | A → Z | 8 |
+
+El cuarto ejemplo usa A, B, D, E, G, H, S y Z. Sus nodos se obtienen de los
+extremos de sus aristas; no se crean las letras intermedias que no participan.
 
 En el tercero, todas las capacidades son 1. El primer camino es
 `A → B → D → G`. El segundo es `A → C → D → B → E → F → G`.
@@ -172,7 +179,8 @@ cortes pequeños, sin utilizar ningún solucionador externo de flujo máximo.
 La opción `--interfaz` usa AppTest, incluido en Streamlit, y recorre los ejemplos,
 la navegación, la edición, la invalidación, la generación de 16 nodos y el
 reinicio manual desde un resultado con múltiples terminales. Comprueba también
-la creación incremental, los ciclos durante la edición y el formato capacidad/flujo.
+la creación incremental, los nombres de nodos hasta Z sin letras consecutivas,
+los ciclos durante la edición y el formato capacidad/flujo.
 Los gestos se verifican en navegador: clic izquierdo/derecho, arrastre de un nodo,
 rueda, persistencia entre pasos y emulación de un dedo/dos dedos en móvil.
 AppTest por sí solo no simula los eventos del canvas ni sustituye un dispositivo físico.

@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from ford_fulkerson import (
+    MAX_NODOS,
     agregar_arista, cargar_ejemplo, crear_nodos, detectar_ciclo, ford_fulkerson,
     generar_grafo, preparar_red, validar_grafo,
 )
@@ -66,7 +67,7 @@ def ejecutar_pruebas():
     comprobar_resultado(simple)
     print("OK: red sencilla, capacidad, conservación y corte mínimo.")
 
-    for numero, esperado in [(1, 14), (2, 18), (3, 2)]:
+    for numero, esperado in [(1, 14), (2, 18), (3, 2), (4, 8)]:
         datos = cargar_ejemplo(numero)
         resultado = ford_fulkerson(*datos)
         assert resultado["maximo"] == esperado
@@ -80,6 +81,8 @@ def ejecutar_pruebas():
             assert inversa["etiquetas"]["B"]["signo"] == "-"
             assert inversa["flujo_antes"]["B", "D"] == 1
             assert inversa["flujo_despues"]["B", "D"] == 0
+        if numero == 4:
+            assert datos[0] == ["A", "B", "D", "E", "G", "H", "S", "Z"]
         assert resultado["maximo"] == corte_por_enumeracion(*datos)
     print("OK: varias iteraciones, nodos ficticios y uso real de una arista inversa.")
 
@@ -88,8 +91,17 @@ def ejecutar_pruebas():
     debe_fallar(agregar_arista, nodos, cadena, "A", "A", 1)
     for capacidad in [0, -1, 1.5, True, "5"]:
         debe_fallar(agregar_arista, nodos, {}, "A", "B", capacidad)
-    for n in [6, 17, 7.5, True]:
+    for n in [6, MAX_NODOS + 1, 7.5, True]:
         debe_fallar(crear_nodos, n)
+    for nombres in [["A", "B", "C", "D", "E", "F", ultimo]
+                    for ultimo in ["A", "a", "AA", "1", "", None]]:
+        debe_fallar(validar_grafo, nombres, {})
+        debe_fallar(validar_grafo, nombres, {}, True)
+    letras_finales = list("TUVWXYZ")
+    cadena_final = {(u, v): 4 for u, v in zip(letras_finales, letras_finales[1:])}
+    resultado_final = ford_fulkerson(letras_finales, cadena_final, ["T"], ["Z"])
+    assert resultado_final["maximo"] == 4
+    comprobar_resultado(resultado_final)
     for fuentes, sumideros in [([], ["G"]), (["A"], []), (["A"], ["A"]),
                                (["A", "A"], ["G"]), (["A"], ["G", "G"]),
                                (["G"], ["A"]), (["Z"], ["G"]),
@@ -112,10 +124,10 @@ def ejecutar_pruebas():
             resultado = ford_fulkerson(n, c, fuentes, sumideros)
             comprobar_resultado(resultado)
             assert resultado["maximo"] == corte_por_enumeracion(n, c, fuentes, sumideros)
-    for cantidad in [7, 16]:
+    for cantidad in [7, MAX_NODOS]:
         n, c = generar_grafo(cantidad, 1, semilla=0)
         comprobar_resultado(ford_fulkerson(n, c, [n[0]], [n[-1]]))
-    print("OK: 120 redes/selecciones contrastadas con enumeración independiente de cortes; límites de 7 y 16 nodos.")
+    print(f"OK: 120 redes/selecciones contrastadas con enumeración independiente de cortes; límites de 7 y {MAX_NODOS} nodos; letras hasta Z.")
     print("Todas las pruebas pasaron.")
 
 
@@ -129,10 +141,11 @@ def probar_interfaz():
         assert not app.exception, [e.message for e in app.exception]
 
     sin_errores()
-    for ejemplo, esperado in [(1, 14), (2, 18), (3, 2)]:
+    for ejemplo, esperado in [(1, 14), (2, 18), (3, 2), (4, 8)]:
         app.selectbox(key="ejemplo").select(ejemplo).run()
         app.button(key="cargar_ejemplo").click().run()
         sin_errores()
+        assert app.number_input(key="n").value == len(app.session_state["nodos"])
         app.button(key="iniciar").click().run()
         sin_errores()
         assert app.session_state["resultado"]["maximo"] == esperado
@@ -148,6 +161,20 @@ def probar_interfaz():
         assert any(f"FLUJO MÁXIMO = {esperado}" in e.value for e in app.success)
         app.button(key="anterior").click().run()
         sin_errores()
+
+    # Aumentar el tamaño de una red con letras no consecutivas conserva sus aristas.
+    aristas_ejemplo = dict(app.session_state["aristas"])
+    app.number_input(key="n").set_value(9).run()
+    sin_errores()
+    assert app.session_state["aristas"] == aristas_ejemplo
+    assert len(set(app.session_state["nodos"])) == 9
+    assert "Z" in app.session_state["nodos"]
+    app.number_input(key="n").set_value(8).run()
+    sin_errores()
+    assert app.session_state["aristas"] == aristas_ejemplo
+    app.selectbox(key="ejemplo").select(1).run()
+    app.button(key="cargar_ejemplo").click().run()
+    app.button(key="iniciar").click().run()
     app.button(key="reiniciar").click().run()
     assert app.session_state["resultado"] is None
     app.button(key="iniciar").click().run()
@@ -182,9 +209,9 @@ def probar_interfaz():
     app.number_input(key="n").set_value(6).run()
     sin_errores()
     assert app.error
-    app.number_input(key="n").set_value(16).run()
+    app.number_input(key="n").set_value(MAX_NODOS).run()
     sin_errores()
-    assert len(app.session_state["nodos"]) == 16
+    assert len(app.session_state["nodos"]) == MAX_NODOS
     app.radio(key="modo").set_value("Aleatorio").run()
     next(b for b in app.button if b.label == "Generar otro grafo").click().run()
     sin_errores()
@@ -234,10 +261,10 @@ def probar_interfaz():
     assert app.session_state["resultado"]["maximo"] == 8
     final = next(df.value for df in app.dataframe if "Capacidad/Flujo" in df.value.columns)
     assert final.iloc[0]["Capacidad/Flujo"] == "8/8"
-    for _ in range(9):
+    for _ in range(MAX_NODOS - 7):
         app.button(key="agregar_nodo").click().run()
-    assert app.button(key="agregar_nodo").disabled and len(app.session_state["nodos"]) == 16
-    app.number_input(key="n").set_value(17).run()
+    assert app.button(key="agregar_nodo").disabled and len(app.session_state["nodos"]) == MAX_NODOS
+    app.number_input(key="n").set_value(MAX_NODOS + 1).run()
     sin_errores()
     assert app.error
     app.number_input(key="n").set_value(7).run()
@@ -246,7 +273,24 @@ def probar_interfaz():
     app.button(key="crear_nodos").click().run()
     sin_errores()
     assert app.session_state["nodos"] == crear_nodos(7) and not app.session_state["aristas"]
-    print("OK: interfaz, ejemplos, reinicio manual completo, creación incremental, límites 7/16, edición, bloqueo de ciclos y resultados.")
+
+    # Elegir letras al final del alfabeto no requiere crear sus predecesoras.
+    app.button(key="nueva_manual").click().run()
+    for letra in "TUVWXYZ":
+        app.selectbox(key="nombre_nodo").select(letra).run()
+        app.button(key="agregar_nodo").click().run()
+        sin_errores()
+    assert app.session_state["nodos"] == list("TUVWXYZ")
+    app.selectbox(key="origen_arista").select("T")
+    app.selectbox(key="destino_arista").select("Z")
+    app.number_input(key="capacidad_arista").set_value(6)
+    next(b for b in app.button if b.label == "Agregar arista").click().run()
+    app.selectbox(key="fuente_ui").select("T")
+    app.selectbox(key="sumidero_ui").select("Z").run()
+    app.button(key="iniciar").click().run()
+    sin_errores()
+    assert app.session_state["resultado"]["maximo"] == 6
+    print(f"OK: interfaz, ejemplos, reinicio manual completo, creación incremental, límites 7/{MAX_NODOS}, edición, bloqueo de ciclos y resultados.")
 
 
 if __name__ == "__main__":
