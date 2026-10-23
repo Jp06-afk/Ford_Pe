@@ -595,7 +595,7 @@ else:
     st.caption("Configura una red válida e inicia el algoritmo para recorrer sus estados.")
 
 #with st.expander("Aplicaciones del flujo máximo"):
-st.markdown("**Aplicaciones del flujo máximo**")
+st.subheader("Aplicaciones del flujo máximo")
 st.markdown("""
 - **Logística y transporte:** capacidad = vehículos por hora; flujo = vehículos enviados.
 - **Comunicaciones:** capacidad = ancho de banda; flujo = datos transmitidos por segundo.
