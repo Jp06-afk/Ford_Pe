@@ -38,7 +38,7 @@ def validar_grafo(nodos, capacidades, en_construccion=False):
     if not en_construccion and len(nodos) < MIN_NODOS:
         raise ValueError(f"El número de nodos debe ser un entero entre {MIN_NODOS} y {MAX_NODOS}.")
     if any(not isinstance(nodo, str) or len(nodo) != 1 or nodo not in LETRAS_NODOS
-           for nodo in nodos) or len(set(nodos)) != len(nodos):
+        for nodo in nodos) or len(set(nodos)) != len(nodos):
         raise ValueError("Los nodos deben ser letras mayúsculas de A a Z, sin repetir.")
     for (u, v), capacidad in capacidades.items():
         if u not in nodos or v not in nodos:
@@ -173,7 +173,7 @@ def reconstruir_camino(etiquetas, fuente, sumidero):
         etiqueta = etiquetas[y]
         x, signo = etiqueta["predecesor"], etiqueta["signo"]
         camino.append({"origen": x, "destino": y, "signo": signo,
-                       "arista": (x, y) if signo == "+" else (y, x)})
+                    "arista": (x, y) if signo == "+" else (y, x)})
         y = x
     return list(reversed(camino))
 
@@ -226,14 +226,14 @@ def cargar_ejemplo(numero=1):
     nodos = crear_nodos(7)
     if numero == 1:
         capacidades = {("A", "B"): 8, ("A", "C"): 6, ("B", "D"): 5,
-                       ("B", "E"): 3, ("C", "E"): 4, ("C", "F"): 2,
-                       ("D", "G"): 5, ("E", "G"): 7, ("F", "G"): 2}
+                    ("B", "E"): 3, ("C", "E"): 4, ("C", "F"): 2,
+                    ("D", "G"): 5, ("E", "G"): 7, ("F", "G"): 2}
         return nodos, capacidades, ["A"], ["G"]
     if numero == 2:
         capacidades = {("A", "C"): 6, ("A", "D"): 4, ("B", "C"): 3,
-                       ("B", "D"): 5, ("C", "E"): 7, ("C", "F"): 2,
-                       ("D", "E"): 4, ("D", "G"): 5, ("E", "F"): 6,
-                       ("E", "G"): 5}
+                    ("B", "D"): 5, ("C", "E"): 7, ("C", "F"): 2,
+                    ("D", "E"): 4, ("D", "G"): 5, ("E", "F"): 6,
+                    ("E", "G"): 5}
         return nodos, capacidades, ["A", "B"], ["F", "G"]
     if numero == 3:
         capacidades = {e: 1 for e in [("A", "B"), ("A", "C"), ("B", "D"),
@@ -242,9 +242,9 @@ def cargar_ejemplo(numero=1):
         return nodos, capacidades, ["A"], ["G"]
     if numero == 4:
         capacidades = {("A", "B"): 7, ("B", "D"): 5, ("D", "G"): 4,
-                       ("G", "Z"): 3, ("A", "S"): 2, ("S", "E"): 4,
-                       ("E", "H"): 5, ("H", "Z"): 6, ("B", "S"): 1,
-                       ("D", "S"): 3, ("D", "E"): 2, ("G", "H"): 3}
+                    ("G", "Z"): 3, ("A", "S"): 2, ("S", "E"): 4,
+                    ("E", "H"): 5, ("H", "Z"): 6, ("B", "S"): 1,
+                    ("D", "S"): 3, ("D", "E"): 2, ("G", "H"): 3}
         nodos = sorted({nodo for arista in capacidades for nodo in arista})
         return nodos, capacidades, ["A"], ["Z"]
     raise ValueError("Elige un ejemplo entre 1 y 4.")
