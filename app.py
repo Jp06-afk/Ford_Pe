@@ -307,9 +307,12 @@ with st.sidebar:
     st.button("Cargar ejemplo", key="cargar_ejemplo", on_click=usar_ejemplo, width="stretch")
     st.caption("Cargar un ejemplo reemplaza la red actual. Se admiten nodos con letras de A a Z.")
     st.markdown("**Recorrido de la práctica**\n\n01 · Configurar\n\n02 · Construir\n\n03 · Elegir terminales\n\n04 · Explorar pasos\n\n05 · Verificar el corte")
+    st.markdown("**Videos y Recursos**")
+    st.sidebar.link_button("Videos", "https://drive.google.com/file/d/1abw088ka2USfAqEBJYK5TT62ud-ZuT9W/view")
+    st.sidebar.link_button("Lectura", "https://drive.google.com/file/d/1NvqpHhGW_qrB19_ZI4LWpMsXrQ5WBCQQ/view")
 
 st.caption("MATEMÁTICA COMPUTACIONAL / REDES DE FLUJO")
-st.title("Problema del flujo máximo")
+st.title("Problema del flujo máximo", anchor=False)
 st.markdown("**Algoritmo de Ford-Fulkerson** · Un camino, una etiqueta y un incremento a la vez.")
 
 with st.expander("¿Cómo funciona Ford-Fulkerson?"):
@@ -335,7 +338,7 @@ final forman S; los demás, T. Las aristas originales de S a T forman el **corte
 Solo el grafo original debe ser acíclico: los ciclos residuales son válidos.
 """)
 
-st.subheader("01 · Configuración de la red")
+st.subheader("01 · Configuración de la red", anchor=False)
 st.number_input(f"Número de nodos ({MIN_NODOS} a {MAX_NODOS})", step=1, key="n", on_change=cambiar_n)
 st.radio("Método de construcción", ["Ejemplo cargado", "Crear grafo manual", "Aleatorio"],
         key="modo", horizontal=True, on_change=cambiar_modo)
@@ -356,7 +359,7 @@ if estado.modo == "Crear grafo manual":
                 disabled=len(estado.nodos) >= MAX_NODOS)
         st.button("Nueva red manual", key="nueva_manual", on_click=cambiar_modo)
 
-st.subheader("02 · Construcción y visualización")
+st.subheader("02 · Construcción y visualización", anchor=False)
 if estado.modo == "Aleatorio":
     with st.form("generador"):
         densidad = st.slider("Densidad aproximada", 0.0, 1.0, 0.30, 0.05)
@@ -422,7 +425,7 @@ if ciclo_actual:
     st.error("Ciclo detectado: " + " → ".join(recorrido_ciclo) +
             ". Está resaltado en rojo. Elimina una de sus aristas para poder ejecutar.")
 
-st.subheader("03 · Fuente y sumidero")
+st.subheader("03 · Fuente y sumidero", anchor=False)
 estado.setdefault("multiples_ui", estado.multiples)
 multiples = st.checkbox("Múltiples fuentes y/o sumideros", key="multiples_ui")
 if multiples:
@@ -469,7 +472,7 @@ with vista_previa:
     else:
         st.caption("La red se muestra con su flujo en la etapa 04. Editarla descarta los resultados anteriores.")
 
-st.subheader("04 · Ford-Fulkerson paso a paso")
+st.subheader("04 · Ford-Fulkerson paso a paso", anchor=False)
 if st.button("Iniciar Ford-Fulkerson", type="primary", key="iniciar",
             disabled=red is None or estado.resultado is not None):
     try:
@@ -582,7 +585,7 @@ if resultado is not None:
 else:
     st.caption("Configura una red válida e inicia el algoritmo para recorrer sus estados.")
 
-st.subheader("Aplicaciones del flujo máximo")
+st.subheader("Aplicaciones del flujo máximo", anchor=False)
 st.markdown("""
 - **Logística y transporte:** capacidad = vehículos por hora; flujo = vehículos enviados.
 - **Comunicaciones:** capacidad = ancho de banda; flujo = datos transmitidos por segundo.

@@ -171,10 +171,10 @@ export default function ({data, parentElement, setTriggerValue}) {
     // Interceptarlos evita que esa capa se lleve el segundo dedo del pinch.
     const bloquear = e => {e.preventDefault(); e.stopPropagation();};
     const handlers = {pointerdown:down, pointermove:move, pointerup:up,
-                      pointercancel:up, lostpointercapture:up, wheel,
-                      contextmenu:bloquear, dragstart:bloquear, mousedown:bloquear,
-                      touchstart:bloquear, touchmove:bloquear, touchend:bloquear,
-                      dblclick:bloquear};
+                    pointercancel:up, lostpointercapture:up, wheel,
+                    contextmenu:bloquear, dragstart:bloquear, mousedown:bloquear,
+                    touchstart:bloquear, touchmove:bloquear, touchend:bloquear,
+                    dblclick:bloquear};
     for (const [evento, fn] of Object.entries(handlers)) plot.addEventListener(evento, fn, {passive:false,capture:true});
     geometria();
     Plotly.newPlot(plot, fig.data, fig.layout, config).then(() => {if (!cerrado) listo = true;});
@@ -214,7 +214,7 @@ def guardar_canvas(clave):
     posiciones, vista = cambio.get("posiciones", {}), cambio.get("vista", {})
     pares = list(posiciones.values()) + [vista.get("x", []), vista.get("y", [])]
     if not all(isinstance(p, list) and len(p) == 2 and
-               all(type(v) in (int, float) and math.isfinite(v) for v in p) for p in pares):
+            all(type(v) in (int, float) and math.isfinite(v) for v in p) for p in pares):
         return
     if vista["x"][0] >= vista["x"][1] or vista["y"][0] >= vista["y"][1]:
         return
@@ -237,8 +237,8 @@ def mostrar_canvas(figura, key):
     }
     clave = f"canvas_{key}_{estado.revision_red}"
     _CANVAS(data={"figura": json.loads(figura.to_json()), "vista": vista,
-                  "revision": estado.revision_red}, key=clave, height=480, width="stretch",
+                "revision": estado.revision_red}, key=clave, height=480, width="stretch",
             on_cambio_change=lambda: guardar_canvas(clave))
     st.button("Centrar vista", key=f"centrar_{key}", on_click=centrar_canvas)
     st.caption("Arrastra el fondo con clic izquierdo o derecho para mover la vista; arrastra un nodo para moverlo. "
-               "Rueda: zoom. En móvil: un dedo desplaza y dos dedos amplían o reducen.")
+            "Rueda: zoom. En móvil: un dedo desplaza y dos dedos amplían o reducen.")
