@@ -308,9 +308,8 @@ with st.sidebar:
     st.caption("Cargar un ejemplo reemplaza la red actual. Se admiten nodos con letras de A a Z.")
     st.markdown("**Recorrido de la práctica**\n\n01 · Configurar\n\n02 · Construir\n\n03 · Elegir terminales\n\n04 · Explorar pasos\n\n05 · Verificar el corte")
     st.markdown("**Videos y Recursos**")
-    video, lectura = st.sidebar.columns(2)
-    video.link_button("Videos", "https://drive.google.com/file/d/1abw088ka2USfAqEBJYK5TT62ud-ZuT9W/view")
-    lectura.link_button("Lectura", "https://drive.google.com/file/d/1NvqpHhGW_qrB19_ZI4LWpMsXrQ5WBCQQ/view")
+    st.sidebar.link_button("Videos", "https://drive.google.com/file/d/1abw088ka2USfAqEBJYK5TT62ud-ZuT9W/view", use_container_width=True)
+    st.sidebar.link_button("Lectura", "https://drive.google.com/file/d/1NvqpHhGW_qrB19_ZI4LWpMsXrQ5WBCQQ/view", use_container_width=True)
 
 st.caption("MATEMÁTICA COMPUTACIONAL / REDES DE FLUJO")
 st.title("Problema del flujo máximo", anchor=False)
