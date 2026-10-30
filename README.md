@@ -95,6 +95,8 @@ desplaza el canvas; arrastrar un nodo mueve únicamente ese nodo y sus aristas.
 La rueda o el gesto de dos dedos hacen zoom; arrastrar con un solo puntero nunca
 hace zoom. En móvil, un dedo sobre el fondo desplaza la vista y dos dedos amplían
 o reducen. **Centrar vista** permite recuperar todos los nodos después de desplazarlos.
+En la sección 02, **Limpiar grafo** deja la red sin nodos ni aristas y reinicia
+terminales, posiciones y resultados. Después puedes cargar otro ejemplo o crear una red.
 En redes densas
 puedes ocultar los valores y consultar las aristas con el cursor o las tablas.
 Las flechas residuales opuestas se dibujan separadas. El ámbar resalta el

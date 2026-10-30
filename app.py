@@ -46,9 +46,13 @@ def reemplazar_red(nodos, aristas, fuentes=None, sumideros=None):
     invalidar_resultados()
 
 
+def limpiar_grafo():
+    reemplazar_red([], {}, [], [])
+
+
 def cambiar_modo():
     if st.session_state.modo == "Crear grafo manual":
-        reemplazar_red([], {}, [], [])
+        limpiar_grafo()
 
 
 def crear_nodos_manuales():
@@ -466,7 +470,8 @@ with vista_previa:
             grafico["nodos"], grafico["capacidades"], posiciones,
             fuentes + (["S*"] if red and "S*" in red["nodos"] else []),
             sumideros + (["T*"] if red and "T*" in red["nodos"] else []),
-            mostrar_valores=mostrar_valores, ciclo=ciclo_actual), key="previa")
+            mostrar_valores=mostrar_valores, ciclo=ciclo_actual), key="previa",
+            on_limpiar=limpiar_grafo)
         st.caption("Capacidad/flujo en cada arista · fuente: círculo rojo · sumidero: cuadrado negro · ficticio: rombo. Acerca el cursor para ver detalles.")
     else:
         st.caption("La red se muestra con su flujo en la etapa 04. Editarla descarta los resultados anteriores.")

@@ -228,7 +228,7 @@ def centrar_canvas():
     st.session_state.vista_canvas = None
 
 
-def mostrar_canvas(figura, key):
+def mostrar_canvas(figura, key, on_limpiar=None):
     estado = st.session_state
     puntos = list(figura.layout.meta["posiciones"].values()) or [(0, 0)]
     vista = estado.vista_canvas or {
@@ -239,6 +239,10 @@ def mostrar_canvas(figura, key):
     _CANVAS(data={"figura": json.loads(figura.to_json()), "vista": vista,
                 "revision": estado.revision_red}, key=clave, height=480, width="stretch",
             on_cambio_change=lambda: guardar_canvas(clave))
-    st.button("Centrar vista", key=f"centrar_{key}", on_click=centrar_canvas)
+    with st.container(horizontal=True):
+        st.button("Centrar vista", key=f"centrar_{key}", on_click=centrar_canvas)
+        if on_limpiar is not None:
+            st.button("Limpiar grafo", key=f"limpiar_{key}", on_click=on_limpiar,
+                      disabled=not figura.layout.meta["nodos"])
     st.caption("Arrastra el fondo con clic izquierdo o derecho para mover la vista; arrastra un nodo para moverlo. "
             "Rueda: zoom. En móvil: un dedo desplaza y dos dedos amplían o reducen.")

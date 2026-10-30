@@ -315,6 +315,26 @@ def probar_interfaz():
     app.button(key="iniciar").click().run()
     sin_errores()
     assert app.session_state["resultado"]["maximo"] == 6
+
+    # Limpiar desde el gráfico deja la red vacía y permite volver a cargar un ejemplo.
+    app.button(key="reiniciar").click().run()
+    app.session_state["vista_canvas"] = {"x": [-2, 2], "y": [-2, 2]}
+    app.run()
+    revision_anterior = app.session_state["revision_red"]
+    app.button(key="limpiar_previa").click().run()
+    sin_errores()
+    for clave in ["nodos", "aristas", "fuentes", "sumideros", "iteraciones", "posiciones"]:
+        assert not app.session_state[clave], clave
+    assert app.session_state["resultado"] is None and app.session_state["paso"] == 0
+    assert app.session_state["fuente"] is None and app.session_state["sumidero"] is None
+    assert app.session_state["vista_canvas"] is None
+    assert app.session_state["revision_red"] > revision_anterior
+    assert app.button(key="limpiar_previa").disabled and app.button(key="iniciar").disabled
+    app.selectbox(key="ejemplo").select(4).run()
+    app.button(key="cargar_ejemplo").click().run()
+    sin_errores()
+    assert app.session_state["nodos"] == cargar_ejemplo(4)[0]
+    assert not app.button(key="limpiar_previa").disabled
     print(f"OK: interfaz, ejemplos, reinicio manual completo, creación incremental, límites 7/{MAX_NODOS}, edición, bloqueo de ciclos y resultados.")
 
 
